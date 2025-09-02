@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Calendar as CalendarIcon, Clock, Plus, Edit, Trash2, Check, X, Activity } from 'lucide-react'
-import axios from 'axios'
+import apiClient from '../config/axios'
 
 interface TimeSlot {
   id: string
@@ -30,7 +30,7 @@ const Calendar: React.FC<CalendarProps> = ({ onClose }) => {
   const loadTimeSlots = async () => {
     try {
       setIsLoading(true)
-      const response = await axios.get('/api/calendar/settings')
+      const response = await apiClient.get('/api/calendar/settings')
       const slots = response.data.data.timeSlots.map((slot: any) => ({
         id: slot.id || `${slot.day}-${slot.time}`,
         date: slot.date,
@@ -133,7 +133,7 @@ const Calendar: React.FC<CalendarProps> = ({ onClose }) => {
   // Uloženie nastavení
   const saveSettings = async () => {
     try {
-      await axios.post('/api/calendar/settings', { timeSlots })
+      await apiClient.post('/api/calendar/settings', { timeSlots })
       setIsEditing(false)
       // TODO: Show success message
     } catch (error) {
@@ -153,7 +153,7 @@ const Calendar: React.FC<CalendarProps> = ({ onClose }) => {
   // Synchronizácia s Google Calendar
   const handleSyncGoogle = async () => {
     try {
-      await axios.post('/api/calendar/sync-google')
+      await apiClient.post('/api/calendar/sync-google')
       await loadTimeSlots() // Reload data
       // TODO: Show success message
     } catch (error) {

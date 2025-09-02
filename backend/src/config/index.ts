@@ -37,6 +37,8 @@ const loggingSchema = z.object({
 const appSchema = z.object({
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
   port: z.number().min(1).max(65535).default(3000),
+  apiPort: z.number().min(1).max(65535).default(3001),
+  allowedOrigins: z.array(z.string()).default(['http://localhost:3000', 'http://localhost:3001']),
   cronSchedule: z.string().default('*/10 * * * *'),
   debugMode: z.boolean().default(false),
   skipRateLimiting: z.boolean().default(false),

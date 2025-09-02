@@ -77,15 +77,21 @@ router.post('/book', async (req, res) => {
       });
     }
 
-    // Rezervovať slot - vytvoriť event v Google Calendar
-    const updatedSlot = {
-      ...slot,
-      available: false,
-      bookedBy: name,
-      bookedAt: new Date().toISOString()
-    };
+    // Rezervovať slot v Google Calendar
+    const success = await timeSlotService.bookSlotInGoogleCalendar(slotId, {
+      name,
+      email,
+      phone,
+      company,
+      message
+    });
 
-    await timeSlotService.saveTimeSlots([updatedSlot]);
+    if (!success) {
+      return res.status(500).json({
+        success: false,
+        error: 'Nepodarilo sa rezervovať termín v Google Calendar'
+      });
+    }
 
     // TODO: Poslať email potvrdenie
     logger.info('Slot booked successfully in Google Calendar:', {

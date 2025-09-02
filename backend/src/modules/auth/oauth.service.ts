@@ -192,9 +192,9 @@ export class OAuthService {
   }
 
   /**
-   * Skontroluje, či je užívateľ autentifikovaný
+   * Skontroluje, či máme validné OAuth tokens
    */
-  async isAuthenticated(): Promise<boolean> {
+  async hasValidTokens(): Promise<boolean> {
     try {
       const tokens = await this.loadTokens();
       
@@ -210,7 +210,7 @@ export class OAuthService {
 
       return true;
     } catch (error) {
-      logger.error('Failed to check authentication status:', error);
+      logger.error('Failed to check if tokens are valid:', error);
       return false;
     }
   }
@@ -218,8 +218,29 @@ export class OAuthService {
   /**
    * Získa OAuth client pre použitie v Gmail/Calendar services
    */
-  getOAuthClient(): any {
-    return this.oauth2Client;
+  async getOAuthClient(): Promise<any> {
+    try {
+      // Skontrolovať, či máme validné tokens
+      if (!await this.hasValidTokens()) {
+        logger.warn('No valid OAuth tokens, cannot provide OAuth client');
+        return null;
+      }
+
+      // Načítať tokens a nastaviť credentials
+      const tokens = await this.loadTokens();
+      if (tokens) {
+        this.oauth2Client.setCredentials({
+          access_token: tokens.accessToken,
+          refresh_token: tokens.refreshToken,
+          expiry_date: tokens.expiresAt.getTime()
+        });
+      }
+
+      return this.oauth2Client;
+    } catch (error) {
+      logger.error('Failed to get OAuth client:', error);
+      return null;
+    }
   }
 
   /**

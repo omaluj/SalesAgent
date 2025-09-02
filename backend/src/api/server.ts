@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import { config } from '../config/index.js';
 import logger from '../utils/logger.js';
 import { errorHandler } from '../utils/errors.js';
+import { slotGeneratorService } from '../modules/calendar/slot-generator.service.js';
 
 // Import routes
 import dashboardRoutes from './routes/dashboard.js';
@@ -105,6 +106,10 @@ export class ApiServer {
         environment: config.app.nodeEnv,
         port: this.port
       });
+      
+      // Spustiť slot generator cron job
+      slotGeneratorService.startCronJob();
+      logger.info('📅 Slot generator service spustený s automatickým cron jobom');
     });
   }
 

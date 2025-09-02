@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useQuery } from 'react-query'
-import axios from 'axios'
+import apiClient from '../config/axios'
 import { 
   Mail, 
   Building2, 
@@ -48,7 +48,7 @@ interface DashboardData {
 }
 
 const fetchDashboardData = async (): Promise<DashboardData> => {
-  const response = await axios.get('/api/dashboard/overview')
+  const response = await apiClient.get('/api/dashboard/overview')
   return response.data.data
 }
 

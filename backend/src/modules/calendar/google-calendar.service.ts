@@ -2,8 +2,7 @@ import { google } from 'googleapis';
 import logger from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { errorHandler } from '../../utils/errors.js';
-import fs from 'fs';
-import path from 'path';
+import { OAuthService } from '../auth/oauth.service.js';
 
 export interface CalendarEventData {
   title: string;
@@ -26,8 +25,10 @@ export interface CalendarEventResponse {
 export class GoogleCalendarService {
   private calendar: any = null;
   private isInitialized = false;
+  private oauthService: OAuthService;
 
   constructor() {
+    this.oauthService = new OAuthService();
     this.initialize();
   }
 
@@ -36,35 +37,27 @@ export class GoogleCalendarService {
    */
   private async initialize(): Promise<void> {
     try {
-      if (!config.googleCalendar.credentialsPath) {
-        logger.warn('Google Calendar credentials not configured, using mock mode');
-        return;
-      }
-
-      // Load credentials from file
-      const credentialsPath = path.resolve(config.googleCalendar.credentialsPath);
+      // Skontrolovať, či máme OAuth tokens
+      const hasTokens = await this.oauthService.hasValidTokens();
       
-      if (!fs.existsSync(credentialsPath)) {
-        logger.error('Google Calendar credentials file not found', { path: credentialsPath });
+      if (!hasTokens) {
+        logger.warn('No valid OAuth tokens found, Google Calendar service not available');
         return;
       }
 
-      const credentials = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+      // Získať OAuth client s validnými tokenmi
+      const oauthClient = await this.oauthService.getOAuthClient();
+      
+      if (!oauthClient) {
+        logger.warn('Failed to get OAuth client, Google Calendar service not available');
+        return;
+      }
 
-      // Create auth client
-      const auth = new google.auth.GoogleAuth({
-        credentials,
-        scopes: [
-          'https://www.googleapis.com/auth/calendar',
-          'https://www.googleapis.com/auth/calendar.events',
-        ],
-      });
-
-      // Create calendar client
-      this.calendar = google.calendar({ version: 'v3', auth });
+      // Create calendar client s OAuth
+      this.calendar = google.calendar({ version: 'v3', auth: oauthClient });
       this.isInitialized = true;
 
-      logger.info('Google Calendar service initialized successfully');
+      logger.info('Google Calendar service initialized successfully with OAuth');
     } catch (error) {
       logger.error('Failed to initialize Google Calendar service', { error });
       errorHandler.handleError(error as Error, { context: 'google_calendar_init' });

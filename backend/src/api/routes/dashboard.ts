@@ -76,7 +76,7 @@ router.get('/overview', async (req, res) => {
     });
 
     // OAuth status
-    const oauthStatus = await oauthService.isAuthenticated();
+    const oauthStatus = await oauthService.hasValidTokens();
 
     // Queue status
     const queueStatus = {
@@ -147,7 +147,7 @@ router.get('/pipeline-status', async (req, res) => {
 router.get('/api-health', async (req, res) => {
   try {
     const healthChecks = {
-      oauth: await oauthService.isAuthenticated(),
+      oauth: await oauthService.hasValidTokens(),
       gmail: false, // TODO: Check Gmail service
       calendar: false, // TODO: Check Calendar service
       database: true, // TODO: Check database connection

@@ -1,108 +1,91 @@
+import { PrismaClient } from '@prisma/client';
 import logger from '../../utils/logger.js';
 import { googleCalendarService } from './google-calendar.service.js';
 import { prisma } from '../../database/prisma.js';
 
 export interface TimeSlot {
   id: string;
-  date: string; // ISO date string (YYYY-MM-DD)
-  day: string; // Day name (Pondelok, Utorok, etc.)
-  time: string; // Time (10:00, 11:00, etc.)
+  date: string; // YYYY-MM-DD format
+  day: string; // Názov dňa (Pondelok, Utorok, etc.)
+  time: string; // Čas (10:00, 11:00, etc.)
   available: boolean;
-  bookedBy?: string;
-  bookedAt?: string;
-  googleEventId?: string;
+  bookedBy?: string | null;
+  bookedAt?: string | null;
+  googleEventId?: string | null;
 }
 
 export class TimeSlotService {
-  private static instance: TimeSlotService;
-
-  public static getInstance(): TimeSlotService {
-    if (!TimeSlotService.instance) {
-      TimeSlotService.instance = new TimeSlotService();
-    }
-    return TimeSlotService.instance;
-  }
-
   /**
-   * Získa všetky časové okná z Google Calendar
+   * Získa časové okná - generuje ich z Google Calendar
    */
   async getTimeSlots(): Promise<TimeSlot[]> {
     try {
       logger.info('Loading time slots from Google Calendar...');
       
-      // Skontrolovať, či je Google Calendar service pripravený
       if (!googleCalendarService.isReady()) {
         logger.warn('Google Calendar service not ready, returning empty slots');
         return [];
       }
 
-      // Získať nasledujúcich 4 týždňov
+      // Získať všetky sloty z databázy
+      const dbSlots = await prisma.timeSlot.findMany({
+        orderBy: [
+          { date: 'asc' },
+          { time: 'asc' }
+        ]
+      });
+      
+      logger.info('Retrieved slots from database:', { count: dbSlots.length });
+      
+      // Získať eventy z Google Calendar pre synchronizáciu
       const startDate = new Date();
       const endDate = new Date();
       endDate.setDate(startDate.getDate() + 28); // 4 týždne
 
-      // Získať všetky eventy z Google Calendar
       const calendarResponse = await googleCalendarService.getEvents(startDate, endDate);
       
       if (!calendarResponse.success) {
         logger.error('Failed to get Google Calendar events:', calendarResponse.error);
-        return [];
+        // Pokračovať len s databázovými slotmi
+        return dbSlots.map(dbSlot => ({
+          id: dbSlot.id,
+          date: dbSlot.date,
+          day: dbSlot.day,
+          time: dbSlot.time,
+          available: dbSlot.available,
+          bookedBy: dbSlot.bookedBy,
+          bookedAt: dbSlot.bookedAt?.toISOString() || null,
+          googleEventId: dbSlot.googleEventId
+        }));
       }
 
       const calendarEvents = calendarResponse.events;
       logger.info('Retrieved events from Google Calendar:', { count: calendarEvents.length });
 
-      // Získať všetky dostupné sloty z Google Calendar
-      const slots: TimeSlot[] = [];
-      const times = ['10:00', '11:00', '13:00', '14:00', '15:00'];
+      // Mapovať databázové sloty a synchronizovať s Google Calendar
+      const slots: TimeSlot[] = dbSlots.map(dbSlot => {
+        // Nájsť zodpovedajúci event v Google Calendar
+        const slotStart = new Date(dbSlot.date + 'T' + dbSlot.time + ':00');
+        const slotEnd = new Date(slotStart);
+        slotEnd.setHours(slotStart.getHours() + 1);
 
-      // Pre každý deň v nasledujúcich 4 týždňoch
-      for (let dayOffset = 0; dayOffset < 28; dayOffset++) {
-        const currentDate = new Date();
-        currentDate.setDate(currentDate.getDate() + dayOffset);
-        currentDate.setHours(0, 0, 0, 0);
-        
-        const dayOfWeek = currentDate.getDay(); // 0 = nedeľa, 1 = pondelok, ...
-        
-        // Len pracovné dni (pondelok = 1, piatok = 5)
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          const dayNames = ['Nedeľa', 'Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok', 'Sobota'];
-          const dayName = dayNames[dayOfWeek];
-          const dateString = currentDate.toISOString().split('T')[0];
-          
-          // Pre každý časový slot
-          times.forEach(time => {
-            const slotStart = new Date(currentDate);
-            const [hour, minute] = time.split(':').map(Number);
-            slotStart.setHours(hour, minute, 0, 0);
-            
-            const slotEnd = new Date(slotStart);
-            slotEnd.setHours(slotStart.getHours() + 1);
+        const matchingEvent = calendarEvents.find(event => {
+          const eventStart = new Date(event.start.dateTime || event.start.date);
+          const eventEnd = new Date(event.end.dateTime || event.end.date);
+          return eventStart < slotEnd && eventEnd > slotStart;
+        });
 
-            // Skontrolovať, či existuje event v Google Calendar pre tento slot
-            const matchingEvent = calendarEvents.find(event => {
-              const eventStart = new Date(event.start.dateTime || event.start.date);
-              const eventEnd = new Date(event.end.dateTime || event.end.date);
-              
-              // Event sa prekrýva so slotom
-              return eventStart < slotEnd && eventEnd > slotStart;
-            });
-
-            const slot: TimeSlot = {
-              id: `${dateString}-${time}`,
-              date: dateString,
-              day: dayName,
-              time,
-              available: !matchingEvent,
-              bookedBy: matchingEvent?.attendees?.[0]?.displayName || undefined,
-              bookedAt: matchingEvent?.created ? new Date(matchingEvent.created).toISOString() : undefined,
-              googleEventId: matchingEvent?.id || undefined
-            };
-
-            slots.push(slot);
-          });
-        }
-      }
+                 return {
+           id: dbSlot.id,
+           date: dbSlot.date,
+           day: dbSlot.day,
+           time: dbSlot.time,
+           available: dbSlot.available, // Použiť dostupnosť z databázy
+           bookedBy: dbSlot.bookedBy,
+           bookedAt: dbSlot.bookedAt?.toISOString() || null,
+           googleEventId: matchingEvent?.id || dbSlot.googleEventId
+         };
+      });
 
       logger.info('Generated time slots from Google Calendar:', { 
         count: slots.length,
@@ -118,122 +101,87 @@ export class TimeSlotService {
   }
 
   /**
-   * Uloží časové okná - synchronizuje s Google Calendar
-   */
-  async saveTimeSlots(timeSlots: TimeSlot[]): Promise<void> {
-    try {
-      logger.info('Synchronizing time slots with Google Calendar:', { count: timeSlots.length });
-      
-      // Skontrolovať, či je Google Calendar service pripravený
-      if (!googleCalendarService.isReady()) {
-        logger.warn('Google Calendar service not ready, skipping sync');
-        return;
-      }
-
-      // Pre každý slot skontrolovať Google Calendar zmeny
-      for (const slot of timeSlots) {
-        if (!slot.available && !slot.googleEventId) {
-          // Slot je nedostupný ale nemá Google event - vytvoriť event
-          await this.createGoogleCalendarEvent(slot);
-        } else if (slot.available && slot.googleEventId) {
-          // Slot je dostupný ale má Google event - vymazať event
-          await this.deleteGoogleCalendarEvent(slot);
-        }
-      }
-      
-      logger.info('Time slots synchronized with Google Calendar successfully');
-    } catch (error) {
-      logger.error('Error synchronizing time slots with Google Calendar:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Vytvorí event v Google Calendar
+   * Vytvorí event v Google Calendar s rate limiting
    */
   private async createGoogleCalendarEvent(slot: TimeSlot): Promise<void> {
     try {
-      // Použiť dátum zo slotu
+      // Rate limiting - pauza 1 sekunda medzi eventmi
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const slotDate = new Date(slot.date + 'T' + slot.time + ':00');
       const endDate = new Date(slotDate);
-      endDate.setHours(endDate.getHours() + 1); // 1 hodina trvanie
-      
-      const eventTitle = `Konzultácia - ${slot.day} ${slot.time}`;
-      const eventDescription = 'Časové okno pre konzultáciu';
-      
+      endDate.setHours(endDate.getHours() + 1);
+
+      const eventTitle = `Dostupné časové okno - ${slot.day} ${slot.time}`;
+      const eventDescription = 'Časové okno pre konzultáciu. Rezervujte si termín cez náš web.';
+
       const event = await googleCalendarService.createEvent({
-        summary: eventTitle,
+        title: eventTitle,
         description: eventDescription,
         startTime: slotDate,
         endTime: endDate,
         attendees: []
       });
-      
-      if (event?.googleEventId) {
-        slot.googleEventId = event.googleEventId;
-        
-        // Aktualizovať googleEventId v databáze
-        await prisma.timeSlot.update({
-          where: {
-            date_time: {
-              date: slot.date,
-              time: slot.time
-            }
-          },
-          data: {
-            googleEventId: event.googleEventId
-          }
-        });
-        
+
+      if (event?.success && event?.eventId) {
         logger.info('Created Google Calendar event:', {
           date: slot.date,
           day: slot.day,
           time: slot.time,
-          eventId: event.googleEventId
+          eventId: event.eventId
+        });
+      } else {
+        logger.error('Failed to create Google Calendar event for slot:', {
+          date: slot.date,
+          day: slot.day,
+          time: slot.time,
+          error: event?.error
         });
       }
-      
     } catch (error) {
       logger.error('Error creating Google Calendar event:', error);
     }
   }
 
   /**
-   * Vymaže event z Google Calendar
+   * Uloží časové okná - synchronizuje s Google Calendar
    */
-  private async deleteGoogleCalendarEvent(slot: TimeSlot): Promise<void> {
+  async saveTimeSlots(timeSlots: TimeSlot[]): Promise<void> {
     try {
-      if (slot.googleEventId) {
-        await googleCalendarService.deleteEvent(slot.googleEventId);
-        
-        logger.info('Deleted Google Calendar event:', {
-          day: slot.day,
-          time: slot.time,
-          eventId: slot.googleEventId
-        });
-        
-        slot.googleEventId = undefined;
-        
-        // Aktualizovať googleEventId v databáze
-        await prisma.timeSlot.update({
-          where: {
-            date_time: {
-              date: slot.date,
-              time: slot.time
-            }
+      logger.info('Saving time slots:', { count: timeSlots.length });
+      
+      // Pre každý slot uložiť do databázy
+      for (const slot of timeSlots) {
+        await prisma.timeSlot.upsert({
+          where: { id: slot.id },
+          update: {
+            date: slot.date,
+            day: slot.day,
+            time: slot.time,
+            available: slot.available,
+            bookedBy: slot.bookedBy || null,
+            bookedAt: slot.bookedAt ? new Date(slot.bookedAt) : null,
+            googleEventId: slot.googleEventId || null
           },
-          data: {
-            googleEventId: null
+          create: {
+            id: slot.id,
+            date: slot.date,
+            day: slot.day,
+            time: slot.time,
+            available: slot.available,
+            bookedBy: slot.bookedBy || null,
+            bookedAt: slot.bookedAt ? new Date(slot.bookedAt) : null,
+            googleEventId: slot.googleEventId || null
           }
         });
       }
       
+      logger.info('Time slots saved successfully');
     } catch (error) {
-      logger.error('Error deleting Google Calendar event:', error);
+      logger.error('Error saving time slots:', error);
+      throw error;
     }
   }
-
-
 
   /**
    * Synchronizuje s Google Calendar
@@ -242,84 +190,69 @@ export class TimeSlotService {
     try {
       logger.info('Syncing with Google Calendar...');
       
-      // Získať eventy z Google Calendar
-      const now = new Date();
-      const endDate = new Date();
-      endDate.setDate(now.getDate() + 30); // Next 30 days
-      
-      // Skontrolovať, či je googleCalendarService inicializovaný
       if (!googleCalendarService.isReady()) {
-        logger.warn('Google Calendar service not initialized, skipping sync');
+        logger.warn('Google Calendar service not ready, skipping sync');
         return;
       }
       
-      const calendarResponse = await googleCalendarService.getEvents(now, endDate);
+      // Získať sloty z databázy
+      const dbSlots = await prisma.timeSlot.findMany();
+      
+      // Získať eventy z Google Calendar
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(startDate.getDate() + 28);
+      
+      const calendarResponse = await googleCalendarService.getEvents(startDate, endDate);
       
       if (!calendarResponse.success) {
-        logger.warn('Failed to get Google Calendar events:', calendarResponse.error);
+        logger.error('Failed to get Google Calendar events:', calendarResponse.error);
         return;
       }
       
       const calendarEvents = calendarResponse.events;
       
       // Aktualizovať sloty podľa Google Calendar
-      const timeSlots = await this.getTimeSlots();
-      let updatedCount = 0;
-
-      // Pre každý slot skontrolovať, či má zodpovedajúci event v Google Calendar
-      for (const slot of timeSlots) {
-        const slotDate = new Date(slot.date + 'T' + slot.time + ':00');
-        const slotEndDate = new Date(slotDate);
-        slotEndDate.setHours(slotEndDate.getHours() + 1); // 1 hodina trvanie
+      for (const slot of dbSlots) {
+        const slotStart = new Date(slot.date + 'T' + slot.time + ':00');
+        const slotEnd = new Date(slotStart);
+        slotEnd.setHours(slotStart.getHours() + 1);
         
-        // Hľadať event v Google Calendar pre tento slot
         const matchingEvent = calendarEvents.find(event => {
           const eventStart = new Date(event.start.dateTime || event.start.date);
           const eventEnd = new Date(event.end.dateTime || event.end.date);
-          
-          // Event sa prekrýva so slotom
-          return eventStart < slotEndDate && eventEnd > slotDate;
+          return eventStart < slotEnd && eventEnd > slotStart;
         });
         
         if (matchingEvent) {
-          // Event existuje v Google Calendar - slot je obsadený
-          if (slot.available) {
-            logger.info('Event found in Google Calendar, marking slot as unavailable:', {
-              day: slot.day,
-              time: slot.time,
-              eventId: matchingEvent.googleEventId
-            });
-            
-            slot.available = false;
-            slot.googleEventId = matchingEvent.googleEventId;
-            updatedCount++;
-          }
+          // Slot je obsadený
+          await prisma.timeSlot.update({
+            where: { id: slot.id },
+            data: {
+              available: false,
+              bookedBy: matchingEvent.attendees?.[0]?.displayName || 'Neznámy',
+              bookedAt: new Date(),
+              googleEventId: matchingEvent.id
+            }
+          });
         } else {
-          // Event neexistuje v Google Calendar - slot je dostupný
-          if (!slot.available && slot.googleEventId) {
-            logger.info('Event not found in Google Calendar, marking slot as available:', {
-              day: slot.day,
-              time: slot.time
-            });
-            
-            slot.available = true;
-            slot.bookedBy = undefined;
-            slot.bookedAt = undefined;
-            slot.googleEventId = undefined;
-            updatedCount++;
-          }
+          // Slot je dostupný
+          await prisma.timeSlot.update({
+            where: { id: slot.id },
+            data: {
+              available: true,
+              bookedBy: null,
+              bookedAt: null,
+              googleEventId: null
+            }
+          });
         }
       }
-
-      if (updatedCount > 0) {
-        await this.saveTimeSlots(timeSlots);
-        logger.info('Updated slots from Google Calendar:', { count: updatedCount });
-      } else {
-        logger.info('No changes needed from Google Calendar sync');
-      }
-
+      
+      logger.info('Sync with Google Calendar completed');
     } catch (error) {
       logger.error('Error syncing with Google Calendar:', error);
+      throw error;
     }
   }
 
@@ -369,9 +302,9 @@ export class TimeSlotService {
       
       // Zrušiť rezerváciu
       slot.available = true;
-      slot.bookedBy = undefined;
-      slot.bookedAt = undefined;
-      slot.googleEventId = undefined;
+      slot.bookedBy = null;
+      slot.bookedAt = null;
+      slot.googleEventId = null;
       
       await this.saveTimeSlots(timeSlots);
       
@@ -384,10 +317,201 @@ export class TimeSlotService {
     }
   }
 
+  /**
+   * Rezervuje časové okno v Google Calendar
+   */
+  async bookSlotInGoogleCalendar(slotId: string, attendeeInfo: {
+    name: string;
+    email: string;
+    phone?: string;
+    company?: string;
+    message?: string;
+  }): Promise<boolean> {
+    try {
+      logger.info('Booking slot in Google Calendar:', { slotId, attendeeInfo });
 
+      // Získať slot z generovaných slotov
+      const timeSlots = await this.getTimeSlots();
+      const slot = timeSlots.find(s => s.id === slotId);
 
+      if (!slot) {
+        logger.error('Slot not found:', { slotId });
+        return false;
+      }
 
+      if (!slot.available) {
+        logger.error('Slot is not available:', { slotId });
+        return false;
+      }
 
+      // Ak slot už má Google event ID, aktualizovať ho
+      logger.info('Checking slot for booking:', { slotId, hasGoogleEventId: !!slot.googleEventId });
+      if (slot.googleEventId) {
+        const slotDate = new Date(slot.date + 'T' + slot.time + ':00');
+        const endDate = new Date(slotDate);
+        endDate.setHours(endDate.getHours() + 1);
+
+        const eventTitle = `Rezervovaný termín - ${attendeeInfo.name}`;
+        const eventDescription = `
+Rezervácia konzultácie
+
+Zákazník: ${attendeeInfo.name}
+Email: ${attendeeInfo.email}
+Telefón: ${attendeeInfo.phone || 'Neuvedený'}
+Firma: ${attendeeInfo.company || 'Neuvedená'}
+
+Správa: ${attendeeInfo.message || 'Žiadna správa'}
+
+Rezervované cez Biz-Agent systém.
+        `.trim();
+
+        logger.info('Updating existing Google Calendar event:', { eventId: slot.googleEventId });
+        const event = await googleCalendarService.updateEvent(slot.googleEventId, {
+          title: eventTitle,
+          description: eventDescription,
+          startTime: slotDate,
+          endTime: endDate,
+          attendees: [attendeeInfo.email]
+        });
+
+        if (event?.success) {
+          logger.info('Google Calendar event updated successfully, updating database...');
+          logger.info('Upserting slot in database:', { slotId, date: slot.date, time: slot.time });
+          
+          // Skontrolovať, či slot už existuje v databáze
+          const existingSlot = await prisma.timeSlot.findUnique({
+            where: { id: slotId }
+          });
+          
+          // Skontrolovať, či existuje slot s rovnakým dátumom a časom
+          const existingSlotByDate = await prisma.timeSlot.findFirst({
+            where: { 
+              date: slot.date,
+              time: slot.time
+            }
+          });
+          
+          logger.info('Existing slot in database:', { 
+            exists: !!existingSlot, 
+            slotId,
+            existsByDate: !!existingSlotByDate,
+            dateTimeId: existingSlotByDate?.id
+          });
+          
+          // Aktualizovať slot v databáze
+          if (existingSlotByDate) {
+            // Aktualizovať existujúci slot
+            await prisma.timeSlot.update({
+              where: { id: existingSlotByDate.id },
+              data: {
+                available: false,
+                bookedBy: attendeeInfo.name,
+                bookedAt: new Date(),
+                googleEventId: slot.googleEventId
+              }
+            });
+            logger.info('Updated existing slot in database:', { slotId: existingSlotByDate.id });
+          } else {
+            // Vytvoriť nový slot
+            await prisma.timeSlot.create({
+              data: {
+                id: slotId,
+                date: slot.date,
+                day: slot.day,
+                time: slot.time,
+                available: false,
+                bookedBy: attendeeInfo.name,
+                bookedAt: new Date(),
+                googleEventId: slot.googleEventId
+              }
+            });
+            logger.info('Created new slot in database:', { slotId });
+          }
+
+          logger.info('Slot booked successfully in Google Calendar:', {
+            slotId,
+            eventId: slot.googleEventId,
+            attendee: attendeeInfo.name
+          });
+
+          return true;
+        } else {
+          logger.error('Failed to update Google Calendar event:', {
+            slotId,
+            error: event?.error
+          });
+          return false;
+        }
+      } else {
+        // Vytvoriť nový event v Google Calendar s attendee
+        const slotDate = new Date(slot.date + 'T' + slot.time + ':00');
+        const endDate = new Date(slotDate);
+        endDate.setHours(endDate.getHours() + 1);
+
+        const eventTitle = `Rezervovaný termín - ${attendeeInfo.name}`;
+        const eventDescription = `
+Rezervácia konzultácie
+
+Zákazník: ${attendeeInfo.name}
+Email: ${attendeeInfo.email}
+Telefón: ${attendeeInfo.phone || 'Neuvedený'}
+Firma: ${attendeeInfo.company || 'Neuvedená'}
+
+Správa: ${attendeeInfo.message || 'Žiadna správa'}
+
+Rezervované cez Biz-Agent systém.
+        `.trim();
+
+        const event = await googleCalendarService.createEvent({
+          title: eventTitle,
+          description: eventDescription,
+          startTime: slotDate,
+          endTime: endDate,
+          attendees: [attendeeInfo.email]
+        });
+
+      if (event?.success && event?.eventId) {
+        // Aktualizovať slot v databáze
+        await prisma.timeSlot.upsert({
+          where: { id: slotId },
+          update: {
+            available: false,
+            bookedBy: attendeeInfo.name,
+            bookedAt: new Date(),
+            googleEventId: event.eventId
+          },
+          create: {
+            id: slotId,
+            date: slot.date,
+            day: slot.day,
+            time: slot.time,
+            available: false,
+            bookedBy: attendeeInfo.name,
+            bookedAt: new Date(),
+            googleEventId: event.eventId
+          }
+        });
+
+        logger.info('Slot booked successfully in Google Calendar:', {
+          slotId,
+          eventId: event.eventId,
+          attendee: attendeeInfo.name
+        });
+
+        return true;
+      } else {
+        logger.error('Failed to create Google Calendar event:', {
+          slotId,
+          error: event?.error
+        });
+        return false;
+      }
+      }
+    } catch (error) {
+      logger.error('Error booking slot in Google Calendar:', error);
+      return false;
+    }
+  }
 
 
   /**
@@ -410,4 +534,4 @@ export class TimeSlotService {
 
 }
 
-export const timeSlotService = TimeSlotService.getInstance();
+export const timeSlotService = new TimeSlotService();
