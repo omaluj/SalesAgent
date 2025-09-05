@@ -14,6 +14,8 @@ import calendarRoutes from './routes/calendar.js';
 import publicCalendarRoutes from './routes/public-calendar.js';
 import templateRoutes from './routes/templates.js';
 import analyticsRoutes from './routes/analytics.js';
+import campaignRoutes from './routes/campaigns.js';
+import enhancedTemplateRoutes from './routes/enhanced-templates.js';
 
 export class ApiServer {
   private app: express.Application;
@@ -69,6 +71,8 @@ export class ApiServer {
     this.app.use('/api/public/calendar', publicCalendarRoutes);
     this.app.use('/api/templates', templateRoutes);
     this.app.use('/api/analytics', analyticsRoutes);
+    this.app.use('/api/campaigns', campaignRoutes);
+    this.app.use('/api/enhanced-templates', enhancedTemplateRoutes);
 
     // 404 handler
     this.app.use('*', (req, res) => {

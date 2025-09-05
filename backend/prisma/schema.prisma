@@ -41,6 +41,7 @@ model Company {
   // Relations
   emailLogs   EmailLog[]
   calendarEvents CalendarEvent[]
+  campaignCompanies CampaignCompany[]
   
   @@map("companies")
 }
@@ -136,10 +137,19 @@ model EmailTemplate {
   name        String   @unique
   subject     String
   content     String   // HTML content
-  category    String?  // e.g., "skolky", "firmy", "startup"
+  category    String?  // e.g., "skolky", "firmy", "startup", "upratovanie", "jazykove_skoly"
   
   // Template variables
   variables   Json?    // Array of variable names
+  
+  // Industry targeting
+  targetIndustries String[] // Array of target industries
+  targetSizes      String[] // Array of target company sizes
+  
+  // Campaign settings
+  seasonalStart    String?  // e.g., "08-01" for August 1st
+  seasonalEnd      String?  // e.g., "06-30" for June 30th
+  isSeasonal       Boolean  @default(false)
   
   // Status
   active      Boolean  @default(true)
@@ -148,7 +158,71 @@ model EmailTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
+  // Relations
+  campaigns   Campaign[]
+  
   @@map("email_templates")
+}
+
+// Campaign management
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  
+  // Template and targeting
+  templateId  String
+  template    EmailTemplate @relation(fields: [templateId], references: [id])
+  
+  // Campaign settings
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean  @default(true)
+  
+  // Targeting filters
+  targetIndustries String[] // Array of target industries
+  targetSizes      String[] // Array of target company sizes
+  targetRegions    String[] // Array of target regions
+  
+  // Schedule settings
+  sendTime    String?  // e.g., "09:00" for 9 AM
+  timezone    String   @default("Europe/Bratislava")
+  maxEmailsPerDay Int  @default(50)
+  
+  // Status
+  status      CampaignStatus @default(DRAFT)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  campaignCompanies CampaignCompany[]
+  
+  @@map("campaigns")
+}
+
+// Campaign-Company relationship
+model CampaignCompany {
+  id          String   @id @default(cuid())
+  campaignId  String
+  companyId   String
+  
+  // Campaign assignment
+  assignedAt  DateTime @default(now())
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  
+  // Email tracking
+  emailId     String?
+  status      CampaignCompanyStatus @default(ASSIGNED)
+  
+  // Relations
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@unique([campaignId, companyId])
+  @@map("campaign_companies")
 }
 
 // Agent configuration - stores runtime configuration
@@ -227,4 +301,25 @@ enum ConfigType {
   NUMBER
   BOOLEAN
   JSON
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum CampaignCompanyStatus {
+  ASSIGNED
+  SCHEDULED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  FAILED
+  COMPLETED
+  NO_SHOW
 }
