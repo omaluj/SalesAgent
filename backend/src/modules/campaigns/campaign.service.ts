@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import logger from '../../utils/logger.js';
+import { emailQueue } from '../mail/email-queue.js';
+import { templateService } from '../templates/template-service.js';
 
 export interface CreateCampaignData {
   name: string;
@@ -310,6 +312,214 @@ export class CampaignService {
       throw error;
     }
   }
+
+  /**
+   * Send emails to all companies in campaign
+   */
+  async sendCampaignEmails(campaignId: string): Promise<{
+    totalCompanies: number;
+    emailsQueued: number;
+    errors: number;
+    results: Array<{
+      companyId: string;
+      companyName: string;
+      email: string;
+      success: boolean;
+      error?: string;
+      emailId?: string;
+    }>;
+  }> {
+    try {
+      logger.info('Starting campaign email sending', { campaignId });
+
+      // Get campaign with template and companies
+      const campaign = await this.prisma.campaign.findUnique({
+        where: { id: campaignId },
+        include: {
+          template: true,
+          campaignCompany: {
+            include: {
+              company: true,
+            },
+            where: {
+              status: 'ASSIGNED', // Only send to assigned companies
+            },
+          },
+        },
+      });
+
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
+      if (!campaign.template) {
+        throw new Error('Campaign template not found');
+      }
+
+      const results = [];
+      let emailsQueued = 0;
+      let errors = 0;
+
+      logger.info('Processing companies for campaign', {
+        campaignId,
+        campaignName: campaign.name,
+        totalCompanies: campaign.campaignCompany.length,
+        templateName: campaign.template.name,
+      });
+
+      // Process each company
+      for (const campaignCompany of campaign.campaignCompany) {
+        const company = campaignCompany.company;
+        
+        try {
+          // Check if company has email
+          if (!company.email && !company.contactEmail) {
+            logger.warn('Company has no email address', {
+              companyId: company.id,
+              companyName: company.name,
+            });
+            
+            results.push({
+              companyId: company.id,
+              companyName: company.name,
+              email: 'no-email',
+              success: false,
+              error: 'No email address available',
+            });
+            errors++;
+            continue;
+          }
+
+          // Personalize template
+          const personalizedEmail = await templateService.personalizeTemplate(
+            campaign.template.name,
+            {
+              companyName: company.name,
+              contactName: company.contactName || 'Vážený klient',
+              contactPosition: company.contactPosition || '',
+              industry: company.industry || '',
+              size: company.size || '',
+              website: company.website || '',
+            }
+          );
+
+          // Add to email queue
+          const emailId = await emailQueue.addToQueue({
+            to: company.email || company.contactEmail!,
+            subject: personalizedEmail.subject,
+            htmlContent: personalizedEmail.htmlContent,
+            textContent: personalizedEmail.textContent,
+            templateName: campaign.template.name,
+            companyId: company.id,
+            maxRetries: 3,
+          });
+
+          // Update campaign company status
+          await this.prisma.campaignCompany.update({
+            where: { id: campaignCompany.id },
+            data: {
+              status: 'SCHEDULED',
+              sentAt: new Date(),
+            },
+          });
+
+          // Update company status
+          await this.prisma.company.update({
+            where: { id: company.id },
+            data: {
+              status: 'CONTACTED',
+            },
+          });
+
+          results.push({
+            companyId: company.id,
+            companyName: company.name,
+            email: company.email || company.contactEmail!,
+            success: true,
+            emailId: emailId,
+          });
+
+          emailsQueued++;
+          
+          logger.info('Email queued for company', {
+            campaignId,
+            companyId: company.id,
+            companyName: company.name,
+            email: company.email || company.contactEmail,
+            emailId,
+          });
+
+        } catch (error) {
+          logger.error('Failed to process company for campaign', {
+            campaignId,
+            companyId: company.id,
+            companyName: company.name,
+            error,
+          });
+
+          results.push({
+            companyId: company.id,
+            companyName: company.name,
+            email: company.email || company.contactEmail || 'unknown',
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
+
+          errors++;
+        }
+      }
+
+      const summary = {
+        totalCompanies: campaign.campaignCompany.length,
+        emailsQueued,
+        errors,
+        results,
+      };
+
+      logger.info('Campaign email sending completed', {
+        campaignId,
+        campaignName: campaign.name,
+        ...summary,
+      });
+
+      return summary;
+
+    } catch (error) {
+      logger.error('Failed to send campaign emails', { error, campaignId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get campaign companies with their email status
+   */
+  async getCampaignCompanies(campaignId: string) {
+    try {
+      const campaign = await this.prisma.campaign.findUnique({
+        where: { id: campaignId },
+        include: {
+          campaignCompany: {
+            include: {
+              company: true,
+            },
+            orderBy: {
+              assignedAt: 'desc',
+            },
+          },
+        },
+      });
+
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
+      return campaign.campaignCompany;
+    } catch (error) {
+      logger.error('Failed to get campaign companies', { error, campaignId });
+      throw error;
+    }
+  }
+
 }
 
 export const campaignService = new CampaignService();

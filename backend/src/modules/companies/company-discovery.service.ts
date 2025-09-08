@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import logger from '../../utils/logger.js';
-import { googleSearchService } from '../modules/search/google-search.service.js';
-import { contactScraperService } from '../modules/scraper/contact-scraper.service.js';
+import { googleSearchService } from '../search/google-search.service.js';
+import { contactScraperService } from '../scraper/contact-scraper.service.js';
 import { companyService } from './company-service.js';
 
 export interface DiscoveryResult {

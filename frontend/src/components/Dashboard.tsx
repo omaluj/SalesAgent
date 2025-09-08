@@ -139,6 +139,12 @@ const Dashboard: React.FC = () => {
             📧 Email Kampane
           </Link>
           <Link 
+            to="/campaigns-targeting" 
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            🎯 Kampane + Targeting
+          </Link>
+          <Link 
             to="/templates" 
             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
           >
@@ -149,6 +155,12 @@ const Dashboard: React.FC = () => {
             className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
           >
             📅 Kalendár
+          </Link>
+          <Link 
+            to="/contacts" 
+            className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            🎯 Contact Targeting
           </Link>
         </div>
       </div>

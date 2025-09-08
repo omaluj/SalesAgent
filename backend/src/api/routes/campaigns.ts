@@ -154,4 +154,95 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/campaigns/:id/companies - Add companies to campaign
+ */
+router.post('/:id/companies', async (req, res): Promise<void> => {
+  try {
+    console.log('🔍 DEBUG: POST /api/campaigns/:id/companies called');
+    console.log('🔍 DEBUG: Campaign ID:', req.params.id);
+    console.log('🔍 DEBUG: Request body:', req.body);
+    
+    const { companyIds } = req.body;
+    
+    if (!companyIds || !Array.isArray(companyIds) || companyIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        error: 'Company IDs array is required'
+      });
+      return;
+    }
+
+    const result = await campaignService.assignCompaniesToCampaign(req.params.id, companyIds);
+    
+    console.log('🔍 DEBUG: Companies added to campaign:', req.params.id);
+    
+    res.json({
+      success: true,
+      data: result,
+      message: `Added ${result.count} companies to campaign`
+    });
+  } catch (error) {
+    console.error('❌ DEBUG: Error in POST /api/campaigns/:id/companies:', error);
+    logger.error('Failed to add companies to campaign', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add companies to campaign'
+    });
+  }
+});
+
+/**
+ * POST /api/campaigns/:id/send-emails - Send emails to all companies in campaign
+ */
+router.post('/:id/send-emails', async (req, res): Promise<void> => {
+  try {
+    console.log('🔍 DEBUG: POST /api/campaigns/:id/send-emails called');
+    console.log('🔍 DEBUG: Campaign ID:', req.params.id);
+    
+    const result = await campaignService.sendCampaignEmails(req.params.id);
+    
+    console.log('🔍 DEBUG: Campaign emails sent:', result.emailsQueued, 'emails queued');
+    
+    res.json({
+      success: true,
+      data: result,
+      message: `Queued ${result.emailsQueued} emails for campaign`
+    });
+  } catch (error) {
+    console.error('❌ DEBUG: Error in POST /api/campaigns/:id/send-emails:', error);
+    logger.error('Failed to send campaign emails', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send campaign emails'
+    });
+  }
+});
+
+/**
+ * GET /api/campaigns/:id/companies - Get companies in campaign
+ */
+router.get('/:id/companies', async (req, res): Promise<void> => {
+  try {
+    console.log('🔍 DEBUG: GET /api/campaigns/:id/companies called');
+    console.log('🔍 DEBUG: Campaign ID:', req.params.id);
+    
+    const companies = await campaignService.getCampaignCompanies(req.params.id);
+    
+    console.log('🔍 DEBUG: Found', companies.length, 'companies in campaign');
+    
+    res.json({
+      success: true,
+      data: companies
+    });
+  } catch (error) {
+    console.error('❌ DEBUG: Error in GET /api/campaigns/:id/companies:', error);
+    logger.error('Failed to get campaign companies', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get campaign companies'
+    });
+  }
+});
+
 export default router;
