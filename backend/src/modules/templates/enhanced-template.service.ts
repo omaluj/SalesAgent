@@ -68,6 +68,8 @@ export class EnhancedTemplateService {
    */
   async getTemplates(filters: TemplateFilters = {}) {
     try {
+      console.log('🔍 DEBUG: EnhancedTemplateService.getTemplates called with filters:', filters);
+      
       const where: any = {};
 
       if (filters.category) {
@@ -98,6 +100,8 @@ export class EnhancedTemplateService {
         }));
       }
 
+      console.log('🔍 DEBUG: Prisma where clause:', where);
+
       const templates = await this.prisma.emailTemplate.findMany({
         where,
         include: {
@@ -111,6 +115,11 @@ export class EnhancedTemplateService {
           createdAt: 'desc',
         },
       });
+
+      console.log('🔍 DEBUG: Prisma returned:', templates.length, 'templates');
+      if (templates.length > 0) {
+        console.log('🔍 DEBUG: First template:', templates[0].name);
+      }
 
       return templates;
     } catch (error) {

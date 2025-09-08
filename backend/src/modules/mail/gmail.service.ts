@@ -3,6 +3,7 @@ import logger from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { errorHandler } from '../../utils/errors.js';
 import { oauthService } from '../auth/oauth.service.js';
+import { mockMailjetService } from './mock-mailjet.service.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -355,6 +356,7 @@ export class GmailService {
    * Check if service is ready
    */
   isReady(): boolean {
+    // Pre development, vrátime true ak máme OAuth credentials
     return this.isInitialized && this.gmail !== null;
   }
 }

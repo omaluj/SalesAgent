@@ -9,15 +9,39 @@ const router = Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const filters = {
-      category: req.query.category as string,
-      active: req.query.active === 'true',
-      isSeasonal: req.query.isSeasonal === 'true',
-      targetIndustries: req.query.targetIndustries ? (req.query.targetIndustries as string).split(',') : undefined,
-      targetSizes: req.query.targetSizes ? (req.query.targetSizes as string).split(',') : undefined,
-    };
+    console.log('🔍 DEBUG: GET /api/enhanced-templates called');
+    
+    const filters: any = {};
+    
+    if (req.query.category) {
+      filters.category = req.query.category as string;
+    }
+    
+    if (req.query.active !== undefined) {
+      filters.active = req.query.active === 'true';
+    }
+    
+    if (req.query.isSeasonal !== undefined) {
+      filters.isSeasonal = req.query.isSeasonal === 'true';
+    }
+    
+    if (req.query.targetIndustries) {
+      filters.targetIndustries = (req.query.targetIndustries as string).split(',');
+    }
+    
+    if (req.query.targetSizes) {
+      filters.targetSizes = (req.query.targetSizes as string).split(',');
+    }
 
+    console.log('🔍 DEBUG: Filters:', filters);
+    console.log('🔍 DEBUG: About to call enhancedTemplateService.getTemplates...');
+    
     const templates = await enhancedTemplateService.getTemplates(filters);
+    
+    console.log('🔍 DEBUG: Enhanced template service returned:', templates.length, 'templates');
+    if (templates.length > 0) {
+      console.log('🔍 DEBUG: First template:', templates[0].name);
+    }
     
     res.json({
       success: true,

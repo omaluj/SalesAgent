@@ -73,6 +73,8 @@ export class CampaignService {
    */
   async getCampaigns(filters: CampaignFilters = {}) {
     try {
+      console.log('🔍 DEBUG: CampaignService.getCampaigns called with filters:', filters);
+      
       const where: any = {};
 
       if (filters.status) {
@@ -99,6 +101,8 @@ export class CampaignService {
         };
       }
 
+      console.log('🔍 DEBUG: Prisma where clause:', where);
+
       const campaigns = await this.prisma.campaign.findMany({
         where,
         include: {
@@ -113,6 +117,11 @@ export class CampaignService {
           createdAt: 'desc',
         },
       });
+
+      console.log('🔍 DEBUG: Prisma returned:', campaigns.length, 'campaigns');
+      if (campaigns.length > 0) {
+        console.log('🔍 DEBUG: First campaign:', campaigns[0].name);
+      }
 
       return campaigns;
     } catch (error) {

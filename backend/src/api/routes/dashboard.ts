@@ -4,6 +4,10 @@ import logger from '../../utils/logger.js';
 import { emailQueue } from '../../modules/mail/email-queue.js';
 import { companyService } from '../../modules/companies/company-service.js';
 import { oauthService } from '../../modules/auth/oauth.service.js';
+import { mailjetService } from '../../modules/mail/mailjet.service.js';
+import { mockMailjetService } from '../../modules/mail/mock-mailjet.service.js';
+import { gmailService } from '../../modules/mail/gmail.service.js';
+import { smtpService } from '../../modules/mail/smtp.service.js';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -75,6 +79,45 @@ router.get('/overview', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    // Active campaigns
+    const activeCampaigns = await prisma.campaign.findMany({
+      where: {
+        isActive: true,
+        startDate: { lte: new Date() },
+        endDate: { gte: new Date() }
+      },
+      include: {
+        template: true,
+        campaignCompanies: {
+          include: {
+            company: true
+          },
+          take: 3,
+          orderBy: { sentAt: 'desc' }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    });
+
+    // Recent sent emails from campaigns
+    const recentCampaignEmails = await prisma.campaignCompany.findMany({
+      where: {
+        status: 'SENT',
+        sentAt: { not: null }
+      },
+      include: {
+        campaign: {
+          include: {
+            template: true
+          }
+        },
+        company: true
+      },
+      orderBy: { sentAt: 'desc' },
+      take: 10
+    });
+
     // OAuth status
     const oauthStatus = await oauthService.hasValidTokens();
 
@@ -94,6 +137,8 @@ router.get('/overview', async (req, res) => {
           emails: recentEmails,
           companies: recentCompanies
         },
+        activeCampaigns,
+        recentCampaignEmails,
         systemStatus: {
           oauth: oauthStatus,
           queue: queueStatus,
@@ -164,6 +209,159 @@ router.get('/api-health', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch API health'
+    });
+  }
+});
+
+/**
+ * POST /api/dashboard/test-email
+ * Testovací endpoint pre odosielanie emailov
+ */
+router.post('/test-email', async (req, res) => {
+  try {
+    const { to, subject, content, useMock = true, emailService = 'mock' } = req.body;
+
+    if (!to || !subject || !content) {
+      return res.status(400).json({
+        success: false,
+        error: 'Chýbajú povinné polia: to, subject, content'
+      });
+    }
+
+    logger.info('Test email request received', {
+      to,
+      subject,
+      useMock,
+      contentLength: content.length
+    });
+
+    let result;
+    
+    if (useMock || emailService === 'mock') {
+      // Použijeme mock službu pre testovanie
+      result = await mockMailjetService.sendEmail({
+        to,
+        subject,
+        html: content,
+        template: 'test'
+      });
+    } else if (emailService === 'gmail') {
+      // Použijeme Gmail službu
+      result = await gmailService.sendEmail({
+        to,
+        subject,
+        htmlContent: content,
+        templateName: 'test'
+      });
+    } else if (emailService === 'mailjet') {
+      // Použijeme Mailjet službu
+      result = await mailjetService.sendEmail({
+        to,
+        subject,
+        htmlContent: content,
+        templateName: 'test'
+      });
+    } else if (emailService === 'smtp') {
+      // Použijeme SMTP službu (MailHog)
+      result = await smtpService.sendEmail({
+        to,
+        subject,
+        htmlContent: content,
+        templateName: 'test'
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Neplatná emailová služba. Použite: mock, gmail, mailjet, alebo smtp'
+      });
+    }
+
+    if (result.success) {
+      logger.info('Test email sent successfully', {
+        to,
+        subject,
+        messageId: result.messageId,
+        useMock
+      });
+
+      res.json({
+        success: true,
+        message: 'Test email bol úspešne odoslaný',
+        data: {
+          messageId: result.messageId,
+          to,
+          subject,
+          useMock,
+          emailService
+        }
+      });
+    } else {
+      logger.error('Test email failed', {
+        to,
+        subject,
+        error: result.error,
+        useMock
+      });
+
+      res.status(500).json({
+        success: false,
+        error: result.error || 'Nepodarilo sa odoslať test email'
+      });
+    }
+
+  } catch (error) {
+    logger.error('Error in test email endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Chyba pri odosielaní test emailu'
+    });
+  }
+});
+
+/**
+ * GET /api/dashboard/email-status
+ * Získa stav emailových služieb
+ */
+router.get('/email-status', async (req, res) => {
+  try {
+    const mailjetReady = mailjetService.isReady();
+    const gmailReady = gmailService.isReady();
+    const smtpReady = smtpService.isReady();
+    const mockStats = mockMailjetService.getStats();
+    
+    let mailjetStats = null;
+    if (mailjetReady) {
+      try {
+        mailjetStats = await mailjetService.getSendingStats();
+      } catch (error) {
+        logger.warn('Failed to get Mailjet stats:', error);
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        mailjet: {
+          ready: mailjetReady,
+          stats: mailjetStats
+        },
+        gmail: {
+          ready: gmailReady
+        },
+        smtp: {
+          ready: smtpReady
+        },
+        mock: {
+          stats: mockStats
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error getting email status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Chyba pri získavaní stavu emailových služieb'
     });
   }
 });
