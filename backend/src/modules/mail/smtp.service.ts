@@ -20,18 +20,21 @@ export interface SMTPResponse {
 export class SMTPService {
   private transporter: nodemailer.Transporter | null = null;
   private isInitialized = false;
+  private initializationPromise: Promise<void> | null = null;
 
   constructor() {
-    this.initialize();
+    this.initializationPromise = this.initializeAsync();
   }
 
   /**
-   * Initialize SMTP transporter
+   * Initialize SMTP transporter asynchronously
    */
-  private initialize(): void {
+  private async initializeAsync(): Promise<void> {
     try {
+      logger.info('Initializing SMTP service with MailHog configuration...');
+      
       // MailHog SMTP configuration
-      this.transporter = nodemailer.createTransporter({
+      this.transporter = nodemailer.createTransport({
         host: 'localhost',
         port: 1025,
         secure: false, // MailHog doesn't use TLS
@@ -40,10 +43,33 @@ export class SMTPService {
       });
 
       this.isInitialized = true;
-      logger.info('SMTP service initialized with MailHog');
+      logger.info('SMTP service initialized with MailHog successfully');
+      
+      // Test connection asynchronously without blocking initialization
+      this.testConnection().then(success => {
+        if (success) {
+          logger.info('SMTP connection test successful');
+        } else {
+          logger.warn('SMTP connection test failed, but service is still available');
+        }
+      }).catch(error => {
+        logger.warn('SMTP connection test error', { error });
+      });
     } catch (error) {
-      logger.error('Failed to initialize SMTP service', { error });
+      logger.error('Failed to initialize SMTP service', { 
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      this.isInitialized = false;
     }
+  }
+
+  /**
+   * Initialize SMTP transporter (legacy sync method)
+   */
+  private initialize(): void {
+    // This method is kept for compatibility but should not be used
+    logger.warn('Using legacy sync initialize method, this should not happen');
   }
 
   /**
@@ -51,6 +77,11 @@ export class SMTPService {
    */
   async sendEmail(emailData: SMTPEmailData): Promise<SMTPResponse> {
     try {
+      // Wait for initialization to complete
+      if (this.initializationPromise) {
+        await this.initializationPromise;
+      }
+      
       if (!this.isInitialized || !this.transporter) {
         logger.warn('SMTP not initialized, skipping email send');
         return {

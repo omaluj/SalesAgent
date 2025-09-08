@@ -8,6 +8,10 @@ import { emailQueue } from '../modules/mail/email-queue.js';
 import { companyService } from '../modules/companies/company-service.js';
 import { templateService } from '../modules/templates/template-service.js';
 import { timeSlotService } from '../modules/calendar/time-slot.service.js';
+// Import email services to initialize them
+import '../modules/mail/smtp.service.js';
+import '../modules/mail/gmail.service.js';
+import '../modules/mail/mailjet.service.js';
 
 export class BizAgentCron {
   private isRunning = false;

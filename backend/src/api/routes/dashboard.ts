@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import logger from '../../utils/logger.js';
+import { config } from '../../config/index.js';
 import { emailQueue } from '../../modules/mail/email-queue.js';
 import { companyService } from '../../modules/companies/company-service.js';
 import { oauthService } from '../../modules/auth/oauth.service.js';
 import { mailjetService } from '../../modules/mail/mailjet.service.js';
-import { mockMailjetService } from '../../modules/mail/mock-mailjet.service.js';
 import { gmailService } from '../../modules/mail/gmail.service.js';
 import { smtpService } from '../../modules/mail/smtp.service.js';
 
@@ -219,7 +219,7 @@ router.get('/api-health', async (req, res) => {
  */
 router.post('/test-email', async (req, res) => {
   try {
-    const { to, subject, content, useMock = true, emailService = 'mock' } = req.body;
+    const { to, subject, content, emailService = 'auto' } = req.body;
 
     if (!to || !subject || !content) {
       return res.status(400).json({
@@ -231,21 +231,23 @@ router.post('/test-email', async (req, res) => {
     logger.info('Test email request received', {
       to,
       subject,
-      useMock,
+      emailService,
       contentLength: content.length
     });
 
     let result;
+    let selectedEmailService = emailService;
     
-    if (useMock || emailService === 'mock') {
-      // Použijeme mock službu pre testovanie
-      result = await mockMailjetService.sendEmail({
-        to,
-        subject,
-        html: content,
-        template: 'test'
-      });
-    } else if (emailService === 'gmail') {
+    // Automaticky vyber službu podľa environment ak nie je špecifikovaná
+    if (!selectedEmailService || selectedEmailService === 'auto') {
+      if (config.app.nodeEnv === 'production') {
+        selectedEmailService = 'gmail'; // V produkcii používaj Gmail
+      } else {
+        selectedEmailService = 'smtp'; // V development používaj SMTP (MailHog)
+      }
+    }
+    
+    if (selectedEmailService === 'gmail') {
       // Použijeme Gmail službu
       result = await gmailService.sendEmail({
         to,
@@ -253,7 +255,7 @@ router.post('/test-email', async (req, res) => {
         htmlContent: content,
         templateName: 'test'
       });
-    } else if (emailService === 'mailjet') {
+    } else if (selectedEmailService === 'mailjet') {
       // Použijeme Mailjet službu
       result = await mailjetService.sendEmail({
         to,
@@ -261,7 +263,7 @@ router.post('/test-email', async (req, res) => {
         htmlContent: content,
         templateName: 'test'
       });
-    } else if (emailService === 'smtp') {
+    } else if (selectedEmailService === 'smtp') {
       // Použijeme SMTP službu (MailHog)
       result = await smtpService.sendEmail({
         to,
@@ -272,7 +274,7 @@ router.post('/test-email', async (req, res) => {
     } else {
       return res.status(400).json({
         success: false,
-        error: 'Neplatná emailová služba. Použite: mock, gmail, mailjet, alebo smtp'
+        error: 'Neplatná emailová služba. Použite: auto, gmail, mailjet, alebo smtp'
       });
     }
 
@@ -281,18 +283,18 @@ router.post('/test-email', async (req, res) => {
         to,
         subject,
         messageId: result.messageId,
-        useMock
+        emailService: selectedEmailService
       });
 
       res.json({
         success: true,
-        message: 'Test email bol úspešne odoslaný',
+        message: `Test email bol úspešne odoslaný cez ${selectedEmailService === 'smtp' ? 'SMTP (MailHog)' : selectedEmailService === 'gmail' ? 'Gmail' : 'Mailjet'} službu`,
         data: {
           messageId: result.messageId,
           to,
           subject,
-          useMock,
-          emailService
+          emailService: selectedEmailService,
+          environment: config.app.nodeEnv
         }
       });
     } else {
@@ -300,12 +302,16 @@ router.post('/test-email', async (req, res) => {
         to,
         subject,
         error: result.error,
-        useMock
+        emailService: selectedEmailService
       });
 
       res.status(500).json({
         success: false,
-        error: result.error || 'Nepodarilo sa odoslať test email'
+        error: result.error || 'Nepodarilo sa odoslať test email',
+        data: {
+          emailService: selectedEmailService,
+          environment: config.app.nodeEnv
+        }
       });
     }
 
@@ -327,7 +333,6 @@ router.get('/email-status', async (req, res) => {
     const mailjetReady = mailjetService.isReady();
     const gmailReady = gmailService.isReady();
     const smtpReady = smtpService.isReady();
-    const mockStats = mockMailjetService.getStats();
     
     let mailjetStats = null;
     if (mailjetReady) {
@@ -350,9 +355,6 @@ router.get('/email-status', async (req, res) => {
         },
         smtp: {
           ready: smtpReady
-        },
-        mock: {
-          stats: mockStats
         }
       }
     });

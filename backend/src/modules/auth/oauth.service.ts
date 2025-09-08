@@ -260,6 +260,19 @@ export class OAuthService {
   }
 
   /**
+   * Skontroluje či je používateľ autentifikovaný
+   */
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      const tokens = await this.loadTokens();
+      return tokens !== null && tokens.accessToken !== null;
+    } catch (error) {
+      logger.error('Failed to check authentication status:', error);
+      return false;
+    }
+  }
+
+  /**
    * Testuje OAuth pripojenie
    */
   async testConnection(): Promise<boolean> {

@@ -3,6 +3,7 @@ import logger from '../../utils/logger.js';
 import { config } from '../../config/index.js';
 import { mailjetService } from './mailjet.service.js';
 import { gmailService } from './gmail.service.js';
+import { smtpService } from './smtp.service.js';
 
 export interface EmailQueueItem {
   id: string;
@@ -193,8 +194,40 @@ export class EmailQueue {
         try {
           processed++;
 
-                         // Send email via Gmail if available, otherwise Mailjet, otherwise debug mode
-               if (gmailService.isReady() && !config.app.debugMode) {
+                         // Send email via SMTP (MailHog) in development, Gmail in production
+               if (config.app.nodeEnv === 'development' && smtpService.isReady()) {
+                 // Development: Use SMTP (MailHog)
+                 const result = await smtpService.sendEmail({
+                   to: email.to,
+                   subject: email.subject,
+                   htmlContent: email.htmlContent,
+                   textContent: email.textContent,
+                   templateName: email.templateName,
+                   companyId: email.companyId,
+                 });
+
+                 if (result.success) {
+                   await this.markAsSent(email.id);
+                   sent++;
+                   logger.info('Email sent via SMTP (MailHog)', {
+                     emailId: email.id,
+                     messageId: result.messageId,
+                     to: email.to,
+                     subject: email.subject,
+                   });
+                 } else {
+                   // SMTP failed - mark as failed
+                   await this.markAsFailed(email.id, result.error || 'SMTP send failed');
+                   failed++;
+                   logger.error('Failed to send email via SMTP (MailHog)', {
+                     emailId: email.id,
+                     to: email.to,
+                     subject: email.subject,
+                     smtpError: result.error,
+                   });
+                 }
+               } else if (gmailService.isReady() && config.app.nodeEnv === 'production') {
+                 // Production: Use Gmail
                  const result = await gmailService.sendEmail({
                    to: email.to,
                    subject: email.subject,
@@ -204,16 +237,16 @@ export class EmailQueue {
                    companyId: email.companyId,
                  });
 
-            if (result.success) {
-              await this.markAsSent(email.id);
-              sent++;
-                               logger.info('Email sent via Gmail', {
-                   emailId: email.id,
-                   messageId: result.messageId,
-                   to: email.to,
-                   subject: email.subject,
-                 });
-               } else if (mailjetService.isReady() && !config.app.debugMode) {
+                 if (result.success) {
+                   await this.markAsSent(email.id);
+                   sent++;
+                   logger.info('Email sent via Gmail', {
+                     emailId: email.id,
+                     messageId: result.messageId,
+                     to: email.to,
+                     subject: email.subject,
+                   });
+                 } else if (mailjetService.isReady() && config.app.nodeEnv === 'production') {
                  // Fallback to Mailjet
                  const mailjetResult = await mailjetService.sendEmail({
                    to: email.to,
@@ -244,16 +277,17 @@ export class EmailQueue {
                    });
                  }
                } else {
-                 // Debug mode or no email service available
-                 await this.markAsSent(email.id);
-                 sent++;
-                 logger.debug('Email would be sent (debug mode or no email service available)', {
+                 // No email service available - mark as failed
+                 await this.markAsFailed(email.id, 'No email service available');
+                 failed++;
+                 logger.error('No email service available', {
                    emailId: email.id,
                    to: email.to,
                    subject: email.subject,
+                   environment: config.app.nodeEnv,
                    gmailReady: gmailService.isReady(),
                    mailjetReady: mailjetService.isReady(),
-                   debugMode: config.app.debugMode,
+                   smtpReady: smtpService.isReady(),
                  });
                }
              }

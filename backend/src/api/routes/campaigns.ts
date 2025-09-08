@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
     
     console.log('🔍 DEBUG: Campaign service returned:', campaigns.length, 'campaigns');
     if (campaigns.length > 0) {
-      console.log('🔍 DEBUG: First campaign:', campaigns[0].name);
+      console.log('🔍 DEBUG: First campaign:', campaigns[0]?.name);
     }
     
     res.json({
