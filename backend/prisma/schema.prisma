@@ -184,10 +184,21 @@ model Campaign {
   targetSizes      String[] // Array of target company sizes
   targetRegions    String[] // Array of target regions
   
+  // Search and discovery settings
+  searchKeywords   String[] // Keywords for Google search
+  searchLocation   String?  // Location for search (e.g., "Slovakia", "Bratislava")
+  maxCompaniesPerSearch Int @default(10) // Max companies to discover per search
+  searchFrequency  String  @default("daily") // daily, weekly, monthly
+  
   // Schedule settings
   sendTime    String?  // e.g., "09:00" for 9 AM
   timezone    String   @default("Europe/Bratislava")
   maxEmailsPerDay Int  @default(50)
+  
+  // Automation settings
+  autoDiscover Boolean @default(true) // Automatically discover new companies
+  autoContact  Boolean @default(true) // Automatically contact discovered companies
+  autoSchedule Boolean @default(true) // Automatically schedule follow-ups
   
   // Status
   status      CampaignStatus @default(DRAFT)
@@ -198,6 +209,7 @@ model Campaign {
   
   // Relations
   campaignCompanies CampaignCompany[]
+  tracking          CampaignTracking[]
   
   @@map("campaigns")
 }
@@ -223,6 +235,41 @@ model CampaignCompany {
   
   @@unique([campaignId, companyId])
   @@map("campaign_companies")
+}
+
+// Campaign tracking and analytics
+model CampaignTracking {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  // Discovery metrics
+  companiesDiscovered Int @default(0)
+  companiesContacted  Int @default(0)
+  companiesResponded  Int @default(0)
+  
+  // Email metrics
+  emailsSent      Int @default(0)
+  emailsDelivered Int @default(0)
+  emailsOpened    Int @default(0)
+  emailsClicked   Int @default(0)
+  emailsBounced   Int @default(0)
+  
+  // Lead metrics
+  leadsGenerated  Int @default(0)
+  meetingsScheduled Int @default(0)
+  meetingsCompleted Int @default(0)
+  
+  // Revenue metrics
+  revenueGenerated Decimal? @db.Decimal(10,2)
+  
+  // Timestamps
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([campaignId, date])
+  @@map("campaign_tracking")
 }
 
 // Agent configuration - stores runtime configuration

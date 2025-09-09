@@ -131,6 +131,23 @@ const CampaignWithTargeting: React.FC = () => {
     return response.data.data;
   });
 
+  // Get campaign analytics mutation
+  const getCampaignAnalyticsMutation = useMutation(async (campaignId: string) => {
+    const response = await axios.get(`/api/campaigns/${campaignId}/analytics`);
+    return response.data.data;
+  });
+
+  // Start/stop automation mutations
+  const startAutomationMutation = useMutation(async (campaignId: string) => {
+    const response = await axios.post(`/api/campaigns/${campaignId}/start-automation`);
+    return response.data;
+  });
+
+  const stopAutomationMutation = useMutation(async (campaignId: string) => {
+    const response = await axios.post(`/api/campaigns/${campaignId}/stop-automation`);
+    return response.data;
+  });
+
   const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -225,6 +242,73 @@ const CampaignWithTargeting: React.FC = () => {
     }
   };
 
+  const handleViewAnalytics = async (campaignId: string) => {
+    try {
+      const analytics = await getCampaignAnalyticsMutation.mutateAsync(campaignId);
+      const { totals, rates } = analytics;
+      
+      const analyticsText = `
+📊 ANALYTIKA KAMPANE
+
+📈 ZÁKLADNÉ METRIKY:
+• Objavené firmy: ${totals.companiesDiscovered}
+• Kontaktované firmy: ${totals.companiesContacted}
+• Odpovede: ${totals.companiesResponded}
+• Odoslané emaily: ${totals.emailsSent}
+• Doručené emaily: ${totals.emailsDelivered}
+• Otvorené emaily: ${totals.emailsOpened}
+• Kliknuté emaily: ${totals.emailsClicked}
+
+🎯 LEADY A STRETNUTIA:
+• Vygenerované leady: ${totals.leadsGenerated}
+• Naplánované stretnutia: ${totals.meetingsScheduled}
+• Dokončené stretnutia: ${totals.meetingsCompleted}
+
+📊 ÚSPEŠNOSŤ:
+• Response rate: ${rates.responseRate.toFixed(1)}%
+• Open rate: ${rates.openRate.toFixed(1)}%
+• Click rate: ${rates.clickRate.toFixed(1)}%
+• Lead rate: ${rates.leadRate.toFixed(1)}%
+• Meeting rate: ${rates.meetingRate.toFixed(1)}%
+      `;
+      
+      alert(analyticsText);
+    } catch (error) {
+      console.error('Failed to get campaign analytics:', error);
+      alert('Chyba pri načítavaní analytiky kampane');
+    }
+  };
+
+  const handleStartAutomation = async (campaignId: string) => {
+    if (!confirm('Naozaj chcete spustiť automatizáciu tejto kampane?')) {
+      return;
+    }
+
+    try {
+      await startAutomationMutation.mutateAsync(campaignId);
+      alert('Automatizácia kampane bola spustená!');
+      queryClient.invalidateQueries('campaigns');
+    } catch (error) {
+      console.error('Failed to start automation:', error);
+      alert('Chyba pri spúšťaní automatizácie kampane');
+    }
+  };
+
+  const handleStopAutomation = async (campaignId: string) => {
+    if (!confirm('Naozaj chcete zastaviť automatizáciu tejto kampane?')) {
+      return;
+    }
+
+    try {
+      await stopAutomationMutation.mutateAsync(campaignId);
+      alert('Automatizácia kampane bola zastavená!');
+      queryClient.invalidateQueries('campaigns');
+    } catch (error) {
+      console.error('Failed to stop automation:', error);
+      alert('Chyba pri zastavovaní automatizácie kampane');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       <div className="mb-8">
@@ -311,19 +395,40 @@ const CampaignWithTargeting: React.FC = () => {
                     🎯 Pridať kontakty
                   </button>
                   
-                  <div className="flex space-x-2">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => handleViewCampaignCompanies(campaign.id)}
-                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 text-sm"
+                      className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 text-sm"
                     >
                       👥 Firmy ({campaign._count.campaignCompanies})
                     </button>
                     <button
+                      onClick={() => handleViewAnalytics(campaign.id)}
+                      className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 text-sm"
+                    >
+                      📊 Analytika
+                    </button>
+                    <button
                       onClick={() => handleSendCampaignEmails(campaign.id)}
-                      className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 text-sm"
+                      className="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 text-sm"
                     >
                       📧 Odoslať
                     </button>
+                    {campaign.status === 'ACTIVE' ? (
+                      <button
+                        onClick={() => handleStopAutomation(campaign.id)}
+                        className="bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 text-sm"
+                      >
+                        ⏸️ Zastaviť
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleStartAutomation(campaign.id)}
+                        className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 text-sm"
+                      >
+                        ▶️ Spustiť
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

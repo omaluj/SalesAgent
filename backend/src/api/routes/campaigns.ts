@@ -245,4 +245,116 @@ router.get('/:id/companies', async (req, res): Promise<void> => {
   }
 });
 
+/**
+ * GET /api/campaigns/:id/analytics - Get campaign analytics
+ */
+router.get('/:id/analytics', async (req, res): Promise<void> => {
+  try {
+    console.log('🔍 DEBUG: GET /api/campaigns/:id/analytics called');
+    console.log('🔍 DEBUG: Campaign ID:', req.params.id);
+    
+    const { startDate, endDate } = req.query;
+    
+    const analytics = await campaignService.getCampaignAnalytics(
+      req.params.id,
+      startDate ? new Date(startDate as string) : undefined,
+      endDate ? new Date(endDate as string) : undefined
+    );
+    
+    console.log('🔍 DEBUG: Campaign analytics retrieved');
+    
+    res.json({
+      success: true,
+      data: analytics
+    });
+  } catch (error) {
+    console.error('❌ DEBUG: Error in GET /api/campaigns/:id/analytics:', error);
+    logger.error('Failed to get campaign analytics', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get campaign analytics'
+    });
+  }
+});
+
+/**
+ * POST /api/campaigns/:id/start-automation - Start campaign automation
+ */
+router.post('/:id/start-automation', async (req, res): Promise<void> => {
+  try {
+    console.log('🔍 DEBUG: POST /api/campaigns/:id/start-automation called');
+    console.log('🔍 DEBUG: Campaign ID:', req.params.id);
+    
+    const campaign = await campaignService.getCampaignById(req.params.id);
+    
+    if (!campaign) {
+      res.status(404).json({
+        success: false,
+        error: 'Campaign not found'
+      });
+      return;
+    }
+    
+    // Update campaign to active status
+    await campaignService.updateCampaign(req.params.id, {
+      status: 'ACTIVE',
+      isActive: true,
+    });
+    
+    console.log('🔍 DEBUG: Campaign automation started');
+    
+    res.json({
+      success: true,
+      message: 'Campaign automation started successfully'
+    });
+  } catch (error) {
+    console.error('❌ DEBUG: Error in POST /api/campaigns/:id/start-automation:', error);
+    logger.error('Failed to start campaign automation', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start campaign automation'
+    });
+  }
+});
+
+/**
+ * POST /api/campaigns/:id/stop-automation - Stop campaign automation
+ */
+router.post('/:id/stop-automation', async (req, res): Promise<void> => {
+  try {
+    console.log('🔍 DEBUG: POST /api/campaigns/:id/stop-automation called');
+    console.log('🔍 DEBUG: Campaign ID:', req.params.id);
+    
+    const campaign = await campaignService.getCampaignById(req.params.id);
+    
+    if (!campaign) {
+      res.status(404).json({
+        success: false,
+        error: 'Campaign not found'
+      });
+      return;
+    }
+    
+    // Update campaign to paused status
+    await campaignService.updateCampaign(req.params.id, {
+      status: 'PAUSED',
+      isActive: false,
+    });
+    
+    console.log('🔍 DEBUG: Campaign automation stopped');
+    
+    res.json({
+      success: true,
+      message: 'Campaign automation stopped successfully'
+    });
+  } catch (error) {
+    console.error('❌ DEBUG: Error in POST /api/campaigns/:id/stop-automation:', error);
+    logger.error('Failed to stop campaign automation', { error });
+    res.status(500).json({
+      success: false,
+      error: 'Failed to stop campaign automation'
+    });
+  }
+});
+
 export default router;

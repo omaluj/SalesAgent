@@ -8,6 +8,7 @@ import { emailQueue } from '../modules/mail/email-queue.js';
 import { companyService } from '../modules/companies/company-service.js';
 import { templateService } from '../modules/templates/template-service.js';
 import { timeSlotService } from '../modules/calendar/time-slot.service.js';
+import { campaignCronService } from './campaign-cron.service.js';
 // Import email services to initialize them
 import '../modules/mail/smtp.service.js';
 import '../modules/mail/gmail.service.js';
@@ -259,9 +260,12 @@ const main = async (): Promise<void> => {
     // await MailjetService.initialize();
     // await CalendarService.initialize();
 
-    // Start cron job
+    // Start cron jobs
     const cronJob = new BizAgentCron();
     cronJob.start();
+    
+    // Start campaign cron service
+    campaignCronService.start();
 
     // Keep the process alive
     process.on('unhandledRejection', (reason, promise) => {

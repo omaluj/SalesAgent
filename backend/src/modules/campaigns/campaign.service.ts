@@ -12,9 +12,16 @@ export interface CreateCampaignData {
   targetIndustries?: string[];
   targetSizes?: string[];
   targetRegions?: string[];
+  searchKeywords?: string[];
+  searchLocation?: string;
+  maxCompaniesPerSearch?: number;
+  searchFrequency?: string;
   sendTime?: string;
   timezone?: string;
   maxEmailsPerDay?: number;
+  autoDiscover?: boolean;
+  autoContact?: boolean;
+  autoSchedule?: boolean;
 }
 
 export interface CampaignFilters {
@@ -516,6 +523,197 @@ export class CampaignService {
       return campaign.campaignCompany;
     } catch (error) {
       logger.error('Failed to get campaign companies', { error, campaignId });
+      throw error;
+    }
+  }
+
+  /**
+   * Create campaign tracking record
+   */
+  async createCampaignTracking(campaignId: string, data: {
+    companiesDiscovered?: number;
+    companiesContacted?: number;
+    companiesResponded?: number;
+    emailsSent?: number;
+    emailsDelivered?: number;
+    emailsOpened?: number;
+    emailsClicked?: number;
+    emailsBounced?: number;
+    leadsGenerated?: number;
+    meetingsScheduled?: number;
+    meetingsCompleted?: number;
+    revenueGenerated?: number;
+    date?: Date;
+  }) {
+    try {
+      const tracking = await this.prisma.campaignTracking.create({
+        data: {
+          campaignId,
+          companiesDiscovered: data.companiesDiscovered || 0,
+          companiesContacted: data.companiesContacted || 0,
+          companiesResponded: data.companiesResponded || 0,
+          emailsSent: data.emailsSent || 0,
+          emailsDelivered: data.emailsDelivered || 0,
+          emailsOpened: data.emailsOpened || 0,
+          emailsClicked: data.emailsClicked || 0,
+          emailsBounced: data.emailsBounced || 0,
+          leadsGenerated: data.leadsGenerated || 0,
+          meetingsScheduled: data.meetingsScheduled || 0,
+          meetingsCompleted: data.meetingsCompleted || 0,
+          revenueGenerated: data.revenueGenerated || 0,
+          date: data.date || new Date(),
+        },
+      });
+
+      logger.info('Campaign tracking created', {
+        campaignId,
+        trackingId: tracking.id,
+        date: tracking.date,
+      });
+
+      return tracking;
+    } catch (error) {
+      logger.error('Failed to create campaign tracking', { error, campaignId, data });
+      throw error;
+    }
+  }
+
+  /**
+   * Update campaign tracking record
+   */
+  async updateCampaignTracking(trackingId: string, data: {
+    companiesDiscovered?: number;
+    companiesContacted?: number;
+    companiesResponded?: number;
+    emailsSent?: number;
+    emailsDelivered?: number;
+    emailsOpened?: number;
+    emailsClicked?: number;
+    emailsBounced?: number;
+    leadsGenerated?: number;
+    meetingsScheduled?: number;
+    meetingsCompleted?: number;
+    revenueGenerated?: number;
+  }) {
+    try {
+      const tracking = await this.prisma.campaignTracking.update({
+        where: { id: trackingId },
+        data,
+      });
+
+      logger.info('Campaign tracking updated', {
+        trackingId,
+        campaignId: tracking.campaignId,
+      });
+
+      return tracking;
+    } catch (error) {
+      logger.error('Failed to update campaign tracking', { error, trackingId, data });
+      throw error;
+    }
+  }
+
+  /**
+   * Get campaign tracking record for specific date
+   */
+  async getCampaignTracking(campaignId: string, date: Date) {
+    try {
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const tracking = await this.prisma.campaignTracking.findFirst({
+        where: {
+          campaignId,
+          date: {
+            gte: startOfDay,
+            lte: endOfDay,
+          },
+        },
+      });
+
+      return tracking;
+    } catch (error) {
+      logger.error('Failed to get campaign tracking', { error, campaignId, date });
+      throw error;
+    }
+  }
+
+  /**
+   * Get campaign analytics
+   */
+  async getCampaignAnalytics(campaignId: string, startDate?: Date, endDate?: Date) {
+    try {
+      const where: any = { campaignId };
+      
+      if (startDate && endDate) {
+        where.date = {
+          gte: startDate,
+          lte: endDate,
+        };
+      }
+
+      const tracking = await this.prisma.campaignTracking.findMany({
+        where,
+        orderBy: {
+          date: 'desc',
+        },
+      });
+
+      // Calculate totals
+      const totals = tracking.reduce((acc, record) => ({
+        companiesDiscovered: acc.companiesDiscovered + record.companiesDiscovered,
+        companiesContacted: acc.companiesContacted + record.companiesContacted,
+        companiesResponded: acc.companiesResponded + record.companiesResponded,
+        emailsSent: acc.emailsSent + record.emailsSent,
+        emailsDelivered: acc.emailsDelivered + record.emailsDelivered,
+        emailsOpened: acc.emailsOpened + record.emailsOpened,
+        emailsClicked: acc.emailsClicked + record.emailsClicked,
+        emailsBounced: acc.emailsBounced + record.emailsBounced,
+        leadsGenerated: acc.leadsGenerated + record.leadsGenerated,
+        meetingsScheduled: acc.meetingsScheduled + record.meetingsScheduled,
+        meetingsCompleted: acc.meetingsCompleted + record.meetingsCompleted,
+        revenueGenerated: acc.revenueGenerated + (record.revenueGenerated || 0),
+      }), {
+        companiesDiscovered: 0,
+        companiesContacted: 0,
+        companiesResponded: 0,
+        emailsSent: 0,
+        emailsDelivered: 0,
+        emailsOpened: 0,
+        emailsClicked: 0,
+        emailsBounced: 0,
+        leadsGenerated: 0,
+        meetingsScheduled: 0,
+        meetingsCompleted: 0,
+        revenueGenerated: 0,
+      });
+
+      // Calculate rates
+      const rates = {
+        responseRate: totals.companiesContacted > 0 ? (totals.companiesResponded / totals.companiesContacted) * 100 : 0,
+        deliveryRate: totals.emailsSent > 0 ? (totals.emailsDelivered / totals.emailsSent) * 100 : 0,
+        openRate: totals.emailsDelivered > 0 ? (totals.emailsOpened / totals.emailsDelivered) * 100 : 0,
+        clickRate: totals.emailsDelivered > 0 ? (totals.emailsClicked / totals.emailsDelivered) * 100 : 0,
+        bounceRate: totals.emailsSent > 0 ? (totals.emailsBounced / totals.emailsSent) * 100 : 0,
+        leadRate: totals.companiesContacted > 0 ? (totals.leadsGenerated / totals.companiesContacted) * 100 : 0,
+        meetingRate: totals.leadsGenerated > 0 ? (totals.meetingsScheduled / totals.leadsGenerated) * 100 : 0,
+        completionRate: totals.meetingsScheduled > 0 ? (totals.meetingsCompleted / totals.meetingsScheduled) * 100 : 0,
+      };
+
+      return {
+        tracking,
+        totals,
+        rates,
+        period: {
+          startDate: startDate || (tracking.length > 0 ? tracking[tracking.length - 1].date : null),
+          endDate: endDate || (tracking.length > 0 ? tracking[0].date : null),
+        },
+      };
+    } catch (error) {
+      logger.error('Failed to get campaign analytics', { error, campaignId, startDate, endDate });
       throw error;
     }
   }
