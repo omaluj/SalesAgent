@@ -22,7 +22,7 @@ async function testPublicCalendar() {
     
     if (availableSlots.length > 0) {
       const firstSlot = availableSlots[0];
-      logger.info(`First slot: ${firstSlot.start.toLocaleString()} - ${firstSlot.end.toLocaleString()} (${firstSlot.available ? 'Available' : 'Booked'})`);
+      logger.info(`First slot: ${firstSlot?.start.toLocaleString()} - ${firstSlot?.end.toLocaleString()} (${firstSlot?.available ? 'Available' : 'Booked'})`);
     }
 
     // Test 4: Verejná URL kalendára

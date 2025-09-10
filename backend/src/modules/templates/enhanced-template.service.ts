@@ -39,11 +39,11 @@ export class EnhancedTemplateService {
           name: data.name,
           subject: data.subject,
           content: data.content,
-          category: data.category,
+          category: data.category || null,
           targetIndustries: data.targetIndustries || [],
           targetSizes: data.targetSizes || [],
-          seasonalStart: data.seasonalStart,
-          seasonalEnd: data.seasonalEnd,
+          seasonalStart: data.seasonalStart || null,
+          seasonalEnd: data.seasonalEnd || null,
           isSeasonal: data.isSeasonal || false,
           variables: data.variables || [],
           active: true,
@@ -118,7 +118,7 @@ export class EnhancedTemplateService {
 
       console.log('🔍 DEBUG: Prisma returned:', templates.length, 'templates');
       if (templates.length > 0) {
-        console.log('🔍 DEBUG: First template:', templates[0].name);
+        console.log('🔍 DEBUG: First template:', templates[0]?.name);
       }
 
       return templates;

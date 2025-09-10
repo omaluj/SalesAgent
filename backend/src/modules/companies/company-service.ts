@@ -172,7 +172,7 @@ export class CompanyService {
       await this.prisma.company.update({
         where: { id: companyId },
         data: {
-          status,
+          status: status as any,
           // Note: lastContactedAt and notes fields don't exist in schema yet
           // TODO: Add these fields to schema in future migration
         },
@@ -239,7 +239,7 @@ export class CompanyService {
         responded,
         meetingScheduled,
         converted,
-        rejected,
+        lost,
         blacklisted,
       };
     } catch (error) {

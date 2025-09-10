@@ -44,28 +44,57 @@ wait_for_service() {
     return 1
 }
 
+# Create logs directory if it doesn't exist
+mkdir -p logs
+
 # Kill existing processes
 echo -e "${YELLOW}🧹 Zastavujem existujúce procesy...${NC}"
 pkill -f "tsx\|nodemon\|vite\|npm" 2>/dev/null || true
-sleep 2
+sleep 3
 
 # Check if ports are free
 if check_port 3001; then
     echo -e "${RED}❌ Port 3001 je obsadený${NC}"
+    echo -e "${YELLOW}💡 Skúste './stop.sh' a potom './startup.sh'${NC}"
     exit 1
 fi
 
 if check_port 3000; then
     echo -e "${RED}❌ Port 3000 je obsadený${NC}"
+    echo -e "${YELLOW}💡 Skúste './stop.sh' a potom './startup.sh'${NC}"
     exit 1
 fi
 
 echo -e "${GREEN}✅ Porty sú voľné${NC}"
 
+# Check if backend dependencies are installed
+echo -e "${BLUE}🔍 Kontrolujem backend dependencies...${NC}"
+if [ ! -d "backend/node_modules" ]; then
+    echo -e "${YELLOW}📦 Inštalujem backend dependencies...${NC}"
+    cd backend
+    npm install
+    cd ..
+fi
+
+# Check if frontend dependencies are installed
+echo -e "${BLUE}🔍 Kontrolujem frontend dependencies...${NC}"
+if [ ! -d "frontend/node_modules" ]; then
+    echo -e "${YELLOW}📦 Inštalujem frontend dependencies...${NC}"
+    cd frontend
+    npm install
+    cd ..
+fi
+
+# Generate Prisma client
+echo -e "${BLUE}🔧 Generujem Prisma client...${NC}"
+cd backend
+npx prisma generate
+cd ..
+
 # Start backend
 echo -e "${BLUE}🔧 Spúšťam backend server...${NC}"
 cd backend
-NODE_ENV=development npx tsx src/api/start-server.ts > ../logs/backend.log 2>&1 &
+NODE_ENV=development ./node_modules/.bin/tsx src/api/start-server.ts > ../logs/backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 
@@ -76,6 +105,12 @@ else
     echo -e "${RED}❌ Backend sa nespustil${NC}"
     echo "Logy:"
     tail -n 20 logs/backend.log
+    echo ""
+    echo -e "${YELLOW}💡 Skúste:${NC}"
+    echo "  1. ./stop.sh"
+    echo "  2. cd backend && npm install"
+    echo "  3. npx prisma generate"
+    echo "  4. ./startup.sh"
     exit 1
 fi
 
@@ -93,28 +128,37 @@ else
     echo -e "${RED}❌ Frontend sa nespustil${NC}"
     echo "Logy:"
     tail -n 20 logs/frontend.log
+    echo ""
+    echo -e "${YELLOW}💡 Skúste:${NC}"
+    echo "  1. ./stop.sh"
+    echo "  2. cd frontend && npm install"
+    echo "  3. ./startup.sh"
     exit 1
 fi
 
 # Test API endpoints
 echo -e "${BLUE}🔍 Testujem API endpointy...${NC}"
 
-# Test public calendar API
-if curl -s "http://localhost:3001/api/public/calendar/slots" | jq -e '.success' >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Verejná API kalendára funguje${NC}"
+# Test health endpoint
+if curl -s "http://localhost:3001/health" | grep -q "ok"; then
+    echo -e "${GREEN}✅ Health endpoint funguje${NC}"
 else
-    echo -e "${RED}❌ Verejná API kalendára nefunguje${NC}"
+    echo -e "${RED}❌ Health endpoint nefunguje${NC}"
 fi
 
-# Test admin calendar API
-if curl -s "http://localhost:3001/api/calendar/settings" | jq -e '.success' >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Admin API kalendára funguje${NC}"
+# Test campaigns API
+if curl -s "http://localhost:3001/api/campaigns" | grep -q "success"; then
+    echo -e "${GREEN}✅ Campaigns API funguje${NC}"
 else
-    echo -e "${RED}❌ Admin API kalendára nefunguje${NC}"
+    echo -e "${RED}❌ Campaigns API nefunguje${NC}"
 fi
 
-# Create logs directory if it doesn't exist
-mkdir -p logs
+# Test contacts API
+if curl -s "http://localhost:3001/api/contacts/test" | grep -q "success"; then
+    echo -e "${GREEN}✅ Contacts API funguje${NC}"
+else
+    echo -e "${RED}❌ Contacts API nefunguje${NC}"
+fi
 
 # Save PIDs for later use
 echo $BACKEND_PID > logs/backend.pid
@@ -125,9 +169,12 @@ echo -e "${GREEN}🎉 Biz-Agent úspešne spustený!${NC}"
 echo "=================================="
 echo -e "${BLUE}📊 Admin Dashboard:${NC} http://localhost:3000/"
 echo -e "${BLUE}📅 Verejný Kalendár:${NC} http://localhost:3000/calendar"
+echo -e "${BLUE}🎯 Contact Targeting:${NC} http://localhost:3000/contacts"
+echo -e "${BLUE}🎯 Campaigns + Targeting:${NC} http://localhost:3000/campaigns-targeting"
 echo -e "${BLUE}🔧 Backend API:${NC} http://localhost:3001/health"
 echo ""
 echo -e "${YELLOW}💡 Tip: Použite './stop.sh' na zastavenie všetkých služieb${NC}"
 echo -e "${YELLOW}💡 Tip: Použite './restart.sh' na reštart všetkých služieb${NC}"
+echo -e "${YELLOW}💡 Tip: Použite './status.sh' na kontrolu stavu služieb${NC}"
 echo ""
 echo -e "${GREEN}✅ Všetky služby bežia správne!${NC}"

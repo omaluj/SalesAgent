@@ -30,7 +30,7 @@ async function testCalendarWithOAuth() {
     const { google } = await import('googleapis');
     const oauthClient = oauthService.getOAuthClient();
     
-    const calendar = google.calendar({ version: 'v3', auth: oauthClient });
+    const calendar = google.calendar({ version: 'v3', auth: oauthClient as any });
     
     // Test calendar list
     const calendarList = await calendar.calendarList.list();
@@ -48,10 +48,10 @@ async function testCalendarWithOAuth() {
     try {
       const calendarInfo = await calendar.calendars.get({ calendarId });
       logger.info(`Calendar info: ${calendarInfo.data.summary}`);
-      logger.info(`Calendar access role: ${calendarInfo.data.accessRole}`);
-      logger.info(`Calendar primary: ${calendarInfo.data.primary}`);
+      logger.info(`Calendar access role: ${(calendarInfo.data as any).accessRole}`);
+      logger.info(`Calendar primary: ${(calendarInfo.data as any).primary}`);
     } catch (error) {
-      logger.error(`Failed to get calendar info: ${error.message}`);
+      logger.error(`Failed to get calendar info: ${(error as any).message}`);
     }
 
     // Test 4: Create test event
@@ -101,9 +101,9 @@ async function testCalendarWithOAuth() {
       logger.info('Test event deleted successfully');
       
     } catch (error) {
-      logger.error(`Failed to create event: ${error.message}`);
-      if (error.response?.data?.error) {
-        logger.error(`Error details: ${JSON.stringify(error.response.data.error)}`);
+      logger.error(`Failed to create event: ${(error as any).message}`);
+      if ((error as any).response?.data?.error) {
+        logger.error(`Error details: ${JSON.stringify((error as any).response.data.error)}`);
       }
     }
 

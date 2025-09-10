@@ -40,7 +40,7 @@ export class SMTPService {
         secure: false, // MailHog doesn't use TLS
         ignoreTLS: true, // Ignore TLS for MailHog
         auth: false // MailHog doesn't require authentication
-      });
+      } as any);
 
       this.isInitialized = true;
       logger.info('SMTP service initialized with MailHog successfully');

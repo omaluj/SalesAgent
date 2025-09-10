@@ -49,7 +49,7 @@ export class GmailService {
         
         // Use OAuth client
         const oauthClient = oauthService.getOAuthClient();
-        this.gmail = google.gmail({ version: 'v1', auth: oauthClient });
+        this.gmail = google.gmail({ version: 'v1', auth: oauthClient as any });
         this.isInitialized = true;
         
         logger.info('Gmail service initialized with OAuth 2.0');
@@ -94,10 +94,10 @@ export class GmailService {
         
         try {
           const authClient = await auth.getClient();
-          authClient.subject = userEmail;
+          (authClient as any).subject = userEmail;
           logger.info('Service Account configured with user impersonation', { userEmail });
         } catch (error) {
-          logger.error('User impersonation failed', { error: error.message, userEmail });
+          logger.error('User impersonation failed', { error: (error as any).message, userEmail });
           throw error;
         }
         

@@ -96,8 +96,8 @@ export class MailjetService {
 
       const response = await this.client.post('send', { version: 'v3.1' }).request(request);
 
-      if (response.body.Messages && response.body.Messages[0].Status === 'success') {
-        const messageId = response.body.Messages[0].To[0].MessageID;
+      if ((response.body as any).Messages && (response.body as any).Messages[0].Status === 'success') {
+        const messageId = (response.body as any).Messages[0].To[0].MessageID;
         
         logger.info('Email sent successfully via Mailjet', {
           messageId,
@@ -110,7 +110,7 @@ export class MailjetService {
           messageId,
         };
       } else {
-        const error = response.body.Messages?.[0]?.Errors?.[0]?.ErrorMessage || 'Unknown error';
+        const error = (response.body as any).Messages?.[0]?.Errors?.[0]?.ErrorMessage || 'Unknown error';
         
         logger.error('Failed to send email via Mailjet', {
           error,
@@ -201,8 +201,8 @@ export class MailjetService {
       
       if (response.body) {
         logger.info('Mailjet connection test successful', {
-          accountId: response.body.ID,
-          email: response.body.Email,
+          accountId: (response.body as any).ID,
+          email: (response.body as any).Email,
         });
         return true;
       } else {
@@ -242,8 +242,8 @@ export class MailjetService {
           ToTS: Math.floor(Date.now() / 1000),
         });
 
-      if (response.body && response.body.Data) {
-        const stats = response.body.Data[0] || {};
+      if (response.body && (response.body as any).Data) {
+        const stats = (response.body as any).Data[0] || {};
         
         logger.info('Retrieved Mailjet sending statistics', stats);
         

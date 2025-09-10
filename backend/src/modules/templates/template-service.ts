@@ -190,7 +190,7 @@ export class TemplateService {
     try {
       await this.prisma.emailTemplate.update({
         where: { id: templateId },
-        data: { isActive: false },
+        data: { active: false },
       });
 
       logger.info('Template deactivated', { templateId });
@@ -225,14 +225,14 @@ export class TemplateService {
         this.prisma.emailLog.groupBy({
           by: ['template'],
           _count: { template: true },
-          where: { template: { not: null } },
+          where: { template: { not: null } } as any,
         }),
       ]);
 
       const usageCount: Record<string, number> = {};
       usageStats.forEach(stat => {
         if (stat.template) {
-          usageCount[stat.template] = stat._count.template;
+          usageCount[stat.template] = (stat._count as any)?.template || 0;
         }
       });
 

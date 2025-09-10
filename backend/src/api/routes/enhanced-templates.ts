@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
     
     console.log('🔍 DEBUG: Enhanced template service returned:', templates.length, 'templates');
     if (templates.length > 0) {
-      console.log('🔍 DEBUG: First template:', templates[0].name);
+      console.log('🔍 DEBUG: First template:', templates[0]?.name);
     }
     
     res.json({
@@ -239,10 +239,11 @@ router.post('/:id/duplicate', async (req, res) => {
     const { newName } = req.body;
 
     if (!newName) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'newName is required',
       });
+      return;
     }
 
     const duplicated = await enhancedTemplateService.duplicateTemplate(id, newName);
@@ -270,7 +271,7 @@ router.post('/:id/toggle', async (req, res) => {
     
     const updated = await enhancedTemplateService.updateTemplate(id, {
       active: !template.active,
-    });
+    } as any);
     
     res.json({
       success: true,

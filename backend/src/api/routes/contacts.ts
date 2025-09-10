@@ -7,6 +7,14 @@ import logger from '../../utils/logger.js';
 const router = Router();
 
 /**
+ * GET /api/contacts/test - Test endpoint
+ */
+router.get('/test', (req, res) => {
+  logger.info('🧪 TEST: /api/contacts/test called');
+  res.json({ success: true, message: 'Contacts route works!' });
+});
+
+/**
  * GET /api/contacts/search - Search for companies with targeting criteria
  */
 router.get('/search', async (req, res) => {

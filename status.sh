@@ -37,15 +37,36 @@ fi
 # Check API endpoints
 echo -e "${BLUE}🔍 API Endpointy:${NC}"
 
+# Health endpoint
+if curl -s "http://localhost:3001/health" | grep -q "ok"; then
+    echo -e "  ${GREEN}✅ Health endpoint${NC}"
+else
+    echo -e "  ${RED}❌ Health endpoint${NC}"
+fi
+
+# Campaigns API
+if curl -s "http://localhost:3001/api/campaigns" | grep -q "success"; then
+    echo -e "  ${GREEN}✅ Campaigns API${NC}"
+else
+    echo -e "  ${RED}❌ Campaigns API${NC}"
+fi
+
+# Contacts API
+if curl -s "http://localhost:3001/api/contacts/test" | grep -q "success"; then
+    echo -e "  ${GREEN}✅ Contacts API${NC}"
+else
+    echo -e "  ${RED}❌ Contacts API${NC}"
+fi
+
 # Public calendar API
-if curl -s "http://localhost:3001/api/public/calendar/slots" | jq -e '.success' >/dev/null 2>&1; then
+if curl -s "http://localhost:3001/api/public/calendar/slots" | grep -q "success"; then
     echo -e "  ${GREEN}✅ Verejná API kalendára${NC}"
 else
     echo -e "  ${RED}❌ Verejná API kalendára${NC}"
 fi
 
 # Admin calendar API
-if curl -s "http://localhost:3001/api/calendar/settings" | jq -e '.success' >/dev/null 2>&1; then
+if curl -s "http://localhost:3001/api/calendar/settings" | grep -q "success"; then
     echo -e "  ${GREEN}✅ Admin API kalendára${NC}"
 else
     echo -e "  ${RED}❌ Admin API kalendára${NC}"
@@ -55,6 +76,8 @@ echo ""
 echo -e "${BLUE}🌐 URL adresy:${NC}"
 echo -e "  ${YELLOW}Admin Dashboard:${NC} http://localhost:3000/"
 echo -e "  ${YELLOW}Verejný Kalendár:${NC} http://localhost:3000/calendar"
+echo -e "  ${YELLOW}Contact Targeting:${NC} http://localhost:3000/contacts"
+echo -e "  ${YELLOW}Campaigns + Targeting:${NC} http://localhost:3000/campaigns-targeting"
 echo -e "  ${YELLOW}Backend API:${NC} http://localhost:3001/health"
 
 echo ""

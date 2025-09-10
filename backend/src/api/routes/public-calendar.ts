@@ -64,33 +64,36 @@ router.post('/book', async (req, res) => {
     const slot = timeSlots.find(s => s.id === slotId);
     
     if (!slot) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Termín nebol nájdený'
       });
+      return;
     }
 
     if (!slot.available) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Termín už nie je dostupný'
       });
+      return;
     }
 
     // Rezervovať slot v Google Calendar
     const success = await timeSlotService.bookSlotInGoogleCalendar(slotId, {
       name,
       email,
-      phone,
-      company,
-      message
-    });
+      phone: phone || undefined,
+      company: company || undefined,
+      message: message || undefined
+    } as any);
 
     if (!success) {
-      return res.status(500).json({
+      res.status(500).json({
         success: false,
         error: 'Nepodarilo sa rezervovať termín v Google Calendar'
       });
+      return;
     }
 
     // TODO: Poslať email potvrdenie
@@ -118,11 +121,12 @@ router.post('/book', async (req, res) => {
 
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Neplatné údaje',
         details: error.errors
       });
+      return;
     }
 
     logger.error('Error booking slot:', error);
@@ -143,10 +147,11 @@ router.get('/availability/:date', async (req, res) => {
     
     // Validácia formátu dátumu
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Neplatný formát dátumu (YYYY-MM-DD)'
       });
+      return;
     }
 
     const timeSlots = await timeSlotService.getTimeSlots();

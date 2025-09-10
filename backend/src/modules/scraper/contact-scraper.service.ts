@@ -53,8 +53,8 @@ export class ContactScraperService {
         emails: this.extractEmails($),
         phones: this.extractPhones($),
         addresses: this.extractAddresses($),
-        contactPerson: this.extractContactPerson($),
-        contactPosition: this.extractContactPosition($),
+        contactPerson: this.extractContactPerson($) || '',
+        contactPosition: this.extractContactPosition($) || '',
       };
 
       logger.info('Website scraping completed', {
@@ -113,7 +113,7 @@ export class ContactScraperService {
       const href = $(element).attr('href');
       if (href) {
         const email = href.replace('mailto:', '').split('?')[0];
-        if (this.isValidEmail(email)) {
+        if (email && this.isValidEmail(email)) {
           emails.add(email.toLowerCase());
         }
       }
@@ -165,7 +165,7 @@ export class ContactScraperService {
       const href = $(element).attr('href');
       if (href) {
         const phone = href.replace('tel:', '').split('?')[0];
-        const cleanPhone = this.cleanPhoneNumber(phone);
+        const cleanPhone = this.cleanPhoneNumber(phone || '');
         if (cleanPhone) {
           phones.add(cleanPhone);
         }
@@ -313,7 +313,7 @@ export class ContactScraperService {
    * Get random user agent
    */
   private getRandomUserAgent(): string {
-    return this.userAgents[Math.floor(Math.random() * this.userAgents.length)];
+    return this.userAgents[Math.floor(Math.random() * this.userAgents.length)] || this.userAgents[0] || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
   }
 
   /**

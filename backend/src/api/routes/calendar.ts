@@ -378,9 +378,9 @@ router.post('/create-100-slots', async (req, res) => {
             // Vytvoriť slot v databáze
             const slot = await prisma.timeSlot.create({
               data: {
-                date: dateStr,
-                day: dayName,
-                time: time,
+                date: dateStr || '',
+                day: dayName || '',
+                time: time || '',
                 available: true
               }
             });
@@ -512,8 +512,8 @@ router.post('/create-clean-slots', async (req, res) => {
             // Skontrolovať, či už existuje v databáze
             const existingSlot = await prisma.timeSlot.findFirst({
               where: {
-                date: dateStr,
-                time: time
+                date: dateStr || '',
+                time: time || ''
               }
             });
             
@@ -526,9 +526,9 @@ router.post('/create-clean-slots', async (req, res) => {
             // Vytvoriť slot v databáze
             const slot = await prisma.timeSlot.create({
               data: {
-                date: dateStr,
-                day: dayName,
-                time: time,
+                date: dateStr || '',
+                day: dayName || '',
+                time: time || '',
                 available: true
               }
             });

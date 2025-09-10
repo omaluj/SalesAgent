@@ -162,7 +162,10 @@ export const seedData = async (): Promise<void> => {
     for (const company of companies) {
       try {
         await prisma.company.create({
-          data: company,
+          data: {
+            ...company,
+            status: company.status as any,
+          },
         });
       } catch (error) {
         // Company might already exist, skip
@@ -201,7 +204,10 @@ export const seedData = async (): Promise<void> => {
     for (const config of configs) {
       try {
         await prisma.agentConfig.create({
-          data: config,
+          data: {
+            ...config,
+            type: config.type as any,
+          },
         });
       } catch (error) {
         // Config might already exist, skip

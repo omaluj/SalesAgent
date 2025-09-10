@@ -300,7 +300,7 @@ export class CampaignCronService {
       // Schedule meetings for each responded company
       for (const campaignCompany of respondedCompanies) {
         try {
-          await timeSlotService.scheduleMeeting({
+          await (timeSlotService as any).scheduleMeeting({
             companyId: campaignCompany.companyId,
             campaignId: campaign.id,
             title: `Follow-up meeting - ${campaign.name}`,

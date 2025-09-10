@@ -40,13 +40,13 @@ export class EmailQueue {
           subject: emailData.subject,
           template: emailData.templateName || 'unknown',
           content: emailData.htmlContent,
-          companyId: emailData.companyId,
+          companyId: emailData.companyId || undefined,
           // Note: scheduledAt, textContent fields don't exist in schema yet
           // TODO: Add these fields to schema in future migration
           status: 'PENDING',
           retryCount: 0,
           maxRetries: emailData.maxRetries || 3,
-        },
+        } as any,
       });
 
       logger.info('Email added to queue', {
@@ -86,10 +86,10 @@ export class EmailQueue {
         subject: email.subject,
         htmlContent: email.content || '',
         textContent: '', // Note: textContent field doesn't exist in schema yet
-        templateName: email.template || undefined,
-        companyId: email.companyId || undefined,
-        scheduledAt: undefined, // Note: scheduledAt field doesn't exist in schema yet
-        status: email.status,
+        templateName: email.template || 'unknown',
+        companyId: email.companyId,
+        scheduledAt: new Date(), // Note: scheduledAt field doesn't exist in schema yet
+        status: email.status as any,
         retryCount: email.retryCount,
         maxRetries: email.maxRetries,
         createdAt: email.sentAt, // Note: EmailLog doesn't have createdAt, using sentAt
@@ -130,7 +130,7 @@ export class EmailQueue {
         where: { id: emailId },
         data: {
           status: 'FAILED',
-          errorMessage: error,
+          errorMessage: error || null,
           retryCount: {
             increment: 1,
           },
@@ -197,14 +197,14 @@ export class EmailQueue {
                          // Send email via SMTP (MailHog) in development, Gmail in production
                if (config.app.nodeEnv === 'development' && smtpService.isReady()) {
                  // Development: Use SMTP (MailHog)
-                 const result = await smtpService.sendEmail({
-                   to: email.to,
-                   subject: email.subject,
-                   htmlContent: email.htmlContent,
-                   textContent: email.textContent,
-                   templateName: email.templateName,
-                   companyId: email.companyId,
-                 });
+                  const result = await smtpService.sendEmail({
+                    to: email.to,
+                    subject: email.subject,
+                    htmlContent: email.htmlContent,
+                    textContent: email.textContent,
+                    templateName: email.templateName || 'unknown',
+                    companyId: email.companyId || undefined,
+                  } as any);
 
                  if (result.success) {
                    await this.markAsSent(email.id);
@@ -228,14 +228,14 @@ export class EmailQueue {
                  }
                } else if (gmailService.isReady() && config.app.nodeEnv === 'production') {
                  // Production: Use Gmail
-                 const result = await gmailService.sendEmail({
-                   to: email.to,
-                   subject: email.subject,
-                   htmlContent: email.htmlContent,
-                   textContent: email.textContent,
-                   templateName: email.templateName,
-                   companyId: email.companyId,
-                 });
+                  const result = await gmailService.sendEmail({
+                    to: email.to,
+                    subject: email.subject,
+                    htmlContent: email.htmlContent,
+                    textContent: email.textContent,
+                    templateName: email.templateName || 'unknown',
+                    companyId: email.companyId || undefined,
+                  } as any);
 
                  if (result.success) {
                    await this.markAsSent(email.id);
@@ -248,14 +248,14 @@ export class EmailQueue {
                    });
                  } else if (mailjetService.isReady() && config.app.nodeEnv === 'production') {
                  // Fallback to Mailjet
-                 const mailjetResult = await mailjetService.sendEmail({
-                   to: email.to,
-                   subject: email.subject,
-                   htmlContent: email.htmlContent,
-                   textContent: email.textContent,
-                   templateName: email.templateName,
-                   companyId: email.companyId,
-                 });
+                  const mailjetResult = await mailjetService.sendEmail({
+                    to: email.to,
+                    subject: email.subject,
+                    htmlContent: email.htmlContent,
+                    textContent: email.textContent,
+                    templateName: email.templateName || 'unknown',
+                    companyId: email.companyId || undefined,
+                  } as any);
 
                  if (mailjetResult.success) {
                    await this.markAsSent(email.id);

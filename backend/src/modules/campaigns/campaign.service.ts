@@ -47,14 +47,14 @@ export class CampaignService {
       const campaign = await this.prisma.campaign.create({
         data: {
           name: data.name,
-          description: data.description,
+          description: data.description || null,
           templateId: data.templateId,
           startDate: data.startDate,
           endDate: data.endDate,
           targetIndustries: data.targetIndustries || [],
           targetSizes: data.targetSizes || [],
           targetRegions: data.targetRegions || [],
-          sendTime: data.sendTime,
+          sendTime: data.sendTime || null,
           timezone: data.timezone || 'Europe/Bratislava',
           maxEmailsPerDay: data.maxEmailsPerDay || 50,
           status: 'DRAFT',
@@ -129,7 +129,7 @@ export class CampaignService {
 
       console.log('🔍 DEBUG: Prisma returned:', campaigns.length, 'campaigns');
       if (campaigns.length > 0) {
-        console.log('🔍 DEBUG: First campaign:', campaigns[0].name);
+        console.log('🔍 DEBUG: First campaign:', campaigns[0]?.name);
       }
 
       return campaigns;
@@ -344,7 +344,7 @@ export class CampaignService {
         where: { id: campaignId },
         include: {
           template: true,
-          campaignCompany: {
+          campaignCompanies: {
             include: {
               company: true,
             },
@@ -370,12 +370,12 @@ export class CampaignService {
       logger.info('Processing companies for campaign', {
         campaignId,
         campaignName: campaign.name,
-        totalCompanies: campaign.campaignCompany.length,
-        templateName: campaign.template.name,
+        totalCompanies: campaign.campaignCompanies.length,
+        templateName: campaign.template?.name || 'Unknown',
       });
 
       // Process each company
-      for (const campaignCompany of campaign.campaignCompany) {
+      for (const campaignCompany of campaign.campaignCompanies) {
         const company = campaignCompany.company;
         
         try {
@@ -399,7 +399,7 @@ export class CampaignService {
 
           // Personalize template
           const personalizedEmail = await templateService.personalizeTemplate(
-            campaign.template.name,
+            campaign.template?.name || 'Unknown',
             {
               companyName: company.name,
               contactName: company.contactName || 'Vážený klient',
@@ -416,7 +416,7 @@ export class CampaignService {
             subject: personalizedEmail.subject,
             htmlContent: personalizedEmail.htmlContent,
             textContent: personalizedEmail.textContent,
-            templateName: campaign.template.name,
+            templateName: campaign.template?.name || 'Unknown',
             companyId: company.id,
             maxRetries: 3,
           });
@@ -477,7 +477,7 @@ export class CampaignService {
       }
 
       const summary = {
-        totalCompanies: campaign.campaignCompany.length,
+        totalCompanies: campaign.campaignCompanies.length,
         emailsQueued,
         errors,
         results,
@@ -505,7 +505,7 @@ export class CampaignService {
       const campaign = await this.prisma.campaign.findUnique({
         where: { id: campaignId },
         include: {
-          campaignCompany: {
+          campaignCompanies: {
             include: {
               company: true,
             },
@@ -520,7 +520,7 @@ export class CampaignService {
         throw new Error('Campaign not found');
       }
 
-      return campaign.campaignCompany;
+      return campaign.campaignCompanies;
     } catch (error) {
       logger.error('Failed to get campaign companies', { error, campaignId });
       throw error;
@@ -675,7 +675,7 @@ export class CampaignService {
         leadsGenerated: acc.leadsGenerated + record.leadsGenerated,
         meetingsScheduled: acc.meetingsScheduled + record.meetingsScheduled,
         meetingsCompleted: acc.meetingsCompleted + record.meetingsCompleted,
-        revenueGenerated: acc.revenueGenerated + (record.revenueGenerated || 0),
+        revenueGenerated: Number(acc.revenueGenerated) + Number(record.revenueGenerated || 0),
       }), {
         companiesDiscovered: 0,
         companiesContacted: 0,
@@ -708,8 +708,8 @@ export class CampaignService {
         totals,
         rates,
         period: {
-          startDate: startDate || (tracking.length > 0 ? tracking[tracking.length - 1].date : null),
-          endDate: endDate || (tracking.length > 0 ? tracking[0].date : null),
+          startDate: startDate || (tracking.length > 0 ? tracking[tracking.length - 1]?.date : null),
+          endDate: endDate || (tracking.length > 0 ? tracking[0]?.date : null),
         },
       };
     } catch (error) {

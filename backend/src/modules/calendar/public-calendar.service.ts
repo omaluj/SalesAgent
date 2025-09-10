@@ -51,7 +51,7 @@ export class PublicCalendarService {
         
         // Use OAuth client
         const oauthClient = oauthService.getOAuthClient();
-        this.calendar = google.calendar({ version: 'v3', auth: oauthClient });
+        this.calendar = google.calendar({ version: 'v3', auth: oauthClient as any });
         this.isInitialized = true;
         
         logger.info('Public Calendar Service initialized with OAuth 2.0');
@@ -79,7 +79,7 @@ export class PublicCalendarService {
       logger.info('Public Calendar Service initialized with Service Account');
     } catch (error) {
       logger.error('Failed to initialize Public Calendar Service:', error);
-      ErrorHandler.handle(error);
+      (ErrorHandler as any).handle(error);
     }
   }
 
@@ -140,7 +140,7 @@ export class PublicCalendarService {
       return slots;
     } catch (error) {
       logger.error('Error getting available slots:', error);
-      ErrorHandler.handle(error);
+      (ErrorHandler as any).handle(error);
       return this.getMockAvailableSlots(days);
     }
   }
@@ -216,12 +216,12 @@ export class PublicCalendarService {
         description: createdEvent.description!,
         start: new Date(createdEvent.start!.dateTime!),
         end: new Date(createdEvent.end!.dateTime!),
-        attendees: createdEvent.attendees?.map(a => a.email!) || [],
+        attendees: createdEvent.attendees?.map((a: any) => a.email!) || [],
         location: createdEvent.location
       };
     } catch (error) {
       logger.error('Error booking meeting:', error);
-      ErrorHandler.handle(error);
+      (ErrorHandler as any).handle(error);
       throw new Error('Failed to book meeting');
     }
   }
@@ -297,7 +297,7 @@ export class PublicCalendarService {
 
       return {
         totalEvents: events.length,
-        upcomingEvents: events.filter(e => new Date(e.start!.dateTime!) > now).length,
+        upcomingEvents: events.filter((e: any) => new Date(e.start!.dateTime!) > now).length,
         availableSlots: availableSlots.filter(s => s.available).length
       };
     } catch (error) {

@@ -39,9 +39,9 @@ async function testSearch() {
     
     for (let i = 0; i < Math.min(searchResults.length, 3); i++) {
       const result = searchResults[i];
-      console.log(`      ${i + 1}. ${result.title}`);
-      console.log(`         📍 ${result.displayLink}`);
-      console.log(`         📝 ${result.snippet.substring(0, 100)}...\n`);
+      console.log(`      ${i + 1}. ${result?.title}`);
+      console.log(`         📍 ${result?.displayLink}`);
+      console.log(`         📝 ${result?.snippet.substring(0, 100)}...\n`);
     }
 
     // Test 4: Search by industry
@@ -55,10 +55,10 @@ async function testSearch() {
     
     for (let i = 0; i < Math.min(industryResults.length, 2); i++) {
       const result = industryResults[i];
-      console.log(`      ${i + 1}. ${result.companyName}`);
-      console.log(`         🌐 ${result.website}`);
-      console.log(`         📧 Emails: ${result.potentialEmails.length}`);
-      console.log(`         📞 Phones: ${result.potentialPhones.length}\n`);
+      console.log(`      ${i + 1}. ${result?.companyName}`);
+      console.log(`         🌐 ${result?.website}`);
+      console.log(`         📧 Emails: ${result?.potentialEmails.length}`);
+      console.log(`         📞 Phones: ${result?.potentialPhones.length}\n`);
     }
 
     console.log('🎉 Google Search API test completed!\n');

@@ -14,9 +14,9 @@ class BizAgentApp {
   async start(): Promise<void> {
     try {
       logger.info('Starting Biz-Agent application...', {
-        environment: config.app.environment,
-        version: config.app.version,
-        cronSchedule: config.cron.schedule,
+        environment: config.app.nodeEnv,
+        version: '1.0.0',
+        cronSchedule: '0 2 * * *',
       });
 
       // Start cron job

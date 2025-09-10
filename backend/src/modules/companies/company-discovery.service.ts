@@ -59,23 +59,23 @@ export class CompanyDiscoveryService {
         try {
           logger.info(`Scraping website ${i + 1}/${Math.min(websites.length, maxCompanies)}`, {
             website,
-            companyName: searchResult.companyName,
+            companyName: searchResult?.companyName || 'Unknown',
           });
 
           // Scrape contact information
-          const contactInfo = await contactScraperService.scrapeWebsite(website);
+          const contactInfo = await contactScraperService.scrapeWebsite(website || '');
 
           // Create discovery result
           const discoveryResult: DiscoveryResult = {
-            companyName: searchResult.companyName,
-            website,
-            description: searchResult.description,
+            companyName: searchResult?.companyName || 'Unknown',
+            website: website || '',
+            description: searchResult?.description || '',
             industry,
             emails: contactInfo.emails,
             phones: contactInfo.phones,
             addresses: contactInfo.addresses,
-            contactPerson: contactInfo.contactPerson,
-            contactPosition: contactInfo.contactPosition,
+            contactPerson: contactInfo.contactPerson || '',
+            contactPosition: contactInfo.contactPosition || '',
             source: 'google_search',
             discoveredAt: new Date(),
           };
@@ -89,7 +89,7 @@ export class CompanyDiscoveryService {
           logger.error('Failed to scrape website', {
             error,
             website,
-            companyName: searchResult.companyName,
+            companyName: searchResult?.companyName || 'Unknown',
           });
         }
       }
@@ -153,8 +153,8 @@ export class CompanyDiscoveryService {
             email: discovery.emails[0] || null,
             phone: discovery.phones[0] || null,
             address: discovery.addresses[0] || null,
-            contactName: discovery.contactPerson,
-            contactPosition: discovery.contactPosition,
+            contactName: discovery.contactPerson || null,
+            contactPosition: discovery.contactPosition || null,
             contactEmail: discovery.emails[1] || null,
             contactPhone: discovery.phones[1] || null,
             source: discovery.source,

@@ -30,7 +30,7 @@ async function testGmailWithOAuth() {
     const { google } = await import('googleapis');
     const oauthClient = oauthService.getOAuthClient();
     
-    const gmail = google.gmail({ version: 'v1', auth: oauthClient });
+    const gmail = google.gmail({ version: 'v1', auth: oauthClient as any });
     
     // Test Gmail profile
     const profile = await gmail.users.getProfile({ userId: 'me' });

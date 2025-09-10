@@ -45,9 +45,9 @@ router.get('/overview', async (req, res) => {
 
     const companyMetrics = {
       total: companyStats.reduce((sum, stat) => sum + stat._count.status, 0),
-      active: companyStats.find(s => s.status === 'ACTIVE')?._count.status || 0,
+      active: companyStats.find(s => s.status === 'PENDING')?._count.status || 0,
       contacted: companyStats.find(s => s.status === 'CONTACTED')?._count.status || 0,
-      interested: companyStats.find(s => s.status === 'INTERESTED')?._count.status || 0,
+      interested: companyStats.find(s => s.status === 'RESPONDED')?._count.status || 0,
     };
 
     // Calendar metrics
@@ -123,7 +123,7 @@ router.get('/overview', async (req, res) => {
 
     // Queue status
     const queueStatus = {
-      isProcessing: emailQueue.isProcessing,
+      isProcessing: (emailQueue as any).isProcessing,
       pendingCount: 0, // TODO: Implement getPendingCount method
     };
 
@@ -222,10 +222,11 @@ router.post('/test-email', async (req, res) => {
     const { to, subject, content, emailService = 'auto' } = req.body;
 
     if (!to || !subject || !content) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Chýbajú povinné polia: to, subject, content'
       });
+      return;
     }
 
     logger.info('Test email request received', {
@@ -297,6 +298,7 @@ router.post('/test-email', async (req, res) => {
           environment: config.app.nodeEnv
         }
       });
+      return;
     } else {
       logger.error('Test email failed', {
         to,
@@ -313,6 +315,7 @@ router.post('/test-email', async (req, res) => {
           environment: config.app.nodeEnv
         }
       });
+      return;
     }
 
   } catch (error) {
@@ -321,6 +324,7 @@ router.post('/test-email', async (req, res) => {
       success: false,
       error: 'Chyba pri odosielaní test emailu'
     });
+    return;
   }
 });
 
